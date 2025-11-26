@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Logs and caches
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.eslintcache
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Prisma
+**/prisma/*.db
+**/prisma/*.db-journal
+
+# Test / coverage
+coverage/
