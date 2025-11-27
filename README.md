@@ -46,17 +46,38 @@ microlead-crm/
   infra/
 ```
 
+## Data stores (PostgreSQL and Redis)
+
+The stack targets **PostgreSQL** (via Prisma) and **Redis** (BullMQ in `apps/worker` when enabled). You are **not** tied to Docker or any single vendor.
+
+### PostgreSQL and Prisma
+
+| Variable | Role |
+|----------|------|
+| `DATABASE_URL` | Primary connection for the API and worker. On hosts that offer a **pooler** (Supabase, Neon, Railway, etc.), use the **pooled** URL for runtime under concurrency. |
+| `DIRECT_URL` | **Direct** connection for `prisma migrate`, `db push`, and introspection. Omit or set equal to `DATABASE_URL` if your host does not distinguish pooler vs direct. |
+
+Use **TLS** for managed databases (`sslmode=require` or the parameters your provider documents). Size Prisma’s pool (and replica count) so you stay under the database **max connections**.
+
+Staging or CI should use a **branch database** or disposable project when running migrations, not production.
+
+### Redis and the worker
+
+**`REDIS_URL`** is read by the BullMQ worker for queues and scheduled work. If you are not running the worker locally, you can leave it unset until you need it; when the worker is enabled, document the URL the same way as the database (managed Upstash / Redis Cloud, native `redis-server`, or **`infra/docker-compose.yml`**).
+
+### Optional local stack
+
+See **`infra/README.md`**. `infra/docker-compose.yml` can start Postgres and Redis on `localhost` for offline development. The app runs equally well against **managed** services — Compose is optional sugar, not architecture.
+
 ## Setup
 
 > **Status:** Scaffold phase — commands below are the **intended** workflow once `package.json` exists.
 
 1. Install **Node** (LTS) and **pnpm**.
-2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `REDIS_URL`, and AI keys as needed.
+2. Copy `.env.example` to `.env`. Set `DATABASE_URL`, `DIRECT_URL` (if applicable), `REDIS_URL` when using the worker, `JWT_SECRET` for auth, and AI keys as needed.
 3. `pnpm install`
 4. `pnpm exec prisma migrate dev` (from API package path once scaffolded)
 5. `pnpm dev` (or per-app dev scripts)
-
-**Database:** any managed or local PostgreSQL. **Redis:** required for worker/queues when enabled. Optional **`infra/docker-compose.yml`** for local services — not mandatory.
 
 ## Screenshots
 
@@ -79,7 +100,7 @@ microlead-crm/
 
 ## Planning playbooks
 
-Folder **`planning/`** in this repository — phased guidelines (not hard limits) for implementation.
+Folder: **`planning/`** in this repo — phased guidelines (not hard limits) for implementation. See **`planning/README.md`** for the index.
 
 ## License
 
