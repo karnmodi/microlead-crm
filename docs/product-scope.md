@@ -22,6 +22,8 @@ Teams, users, companies, contacts, leads, pipeline stages, tasks, notes, activit
 4. **Follow up:** tasks + notes on lead/contact/company; command bar to jump to records.
 5. **AI assist:** generate lead summary, suggested next steps, outreach draft from record context.
 
+See **[requirements-matrix.md](./requirements-matrix.md)** for Relaticle → microlead mapping, Nest module expectations, and performance habits (Phase B traceability).
+
 ## Must-have (release criteria for “credible MVP”)
 
 - Auth + **team-scoped** workspaces.
