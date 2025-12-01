@@ -55,3 +55,10 @@ Record **dated** decisions as the project evolves. Initial defaults below are **
 - **Status:** accepted (concept)  
 - **Decision:** **BullMQ** in `apps/worker` for async jobs; Redis URL from env.  
 - **Consequences:** Need Redis in every environment that runs workers.
+
+### Cross-team isolation tests (quality gate)
+
+- **Status:** accepted  
+- **Context:** Phase B playbook requires proving tenancy before a large CRUD surface lands; we avoid Relaticle-style implicit ORM scoping.  
+- **Decision:** Land at least **one automated cross-team negative test** per sensitive resource (e.g. lead, company) in the auth/teams phase (**Phase E**) before merging bulk domain CRUD (**Phase F**). Expand coverage as modules ship.  
+- **Consequences:** Slightly slower Phase F start; higher confidence in `teamId` enforcement.
