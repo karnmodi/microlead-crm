@@ -1,0 +1,16 @@
+{
+  "name": "@microlead-crm/shared",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "echo \"no tests yet\""
+  },
+  "devDependencies": {
+    "@microlead-crm/config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

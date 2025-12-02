@@ -1,0 +1,20 @@
+{
+  "name": "@microlead-crm/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "echo \"no tests yet\""
+  },
+  "dependencies": {
+    "@microlead-crm/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@microlead-crm/config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
