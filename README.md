@@ -71,13 +71,14 @@ See **`infra/README.md`**. `infra/docker-compose.yml` can start Postgres and Red
 
 ## Setup
 
-> **Status:** Scaffold phase — commands below are the **intended** workflow once `package.json` exists.
-
-1. Install **Node** (LTS) and **pnpm**.
-2. Copy `.env.example` to `.env`. Set `DATABASE_URL`, `DIRECT_URL` (if applicable), `REDIS_URL` when using the worker, `JWT_SECRET` for auth, and AI keys as needed.
+1. Install **Node** 22+ (LTS) and **pnpm** (`corepack enable` or `npm i -g pnpm`).
+2. Copy `.env.example` to `.env`. Set `DATABASE_URL`, `DIRECT_URL` (if applicable), `REDIS_URL` when using the worker, `JWT_SECRET` for auth, and AI keys as needed. For `pnpm --filter @microlead-crm/api exec prisma validate`, any placeholder Postgres URL is enough.
 3. `pnpm install`
-4. `pnpm exec prisma migrate dev` (from API package path once scaffolded)
-5. `pnpm dev` (or per-app dev scripts)
+4. `pnpm build` — Turborepo builds all apps and packages.
+5. `pnpm dev` — runs all `dev` scripts (API default **port 3001**, web **3000**). Use `pnpm --filter @microlead-crm/api dev` (or `web`, `worker`) for a single app.
+6. `pnpm lint` / `pnpm format:check` — repo-wide quality gates (Husky runs **lint-staged** on commit).
+
+**Prisma migrations:** `pnpm --filter @microlead-crm/api exec prisma migrate dev` once models land (Phase D).
 
 ## Screenshots
 
@@ -97,6 +98,7 @@ See **`infra/README.md`**. `infra/docker-compose.yml` can start Postgres and Red
 | [docs/roadmap.md](./docs/roadmap.md) | Phased delivery |
 | [docs/demo-script.md](./docs/demo-script.md) | Demo walkthrough |
 | [docs/decisions.md](./docs/decisions.md) | ADRs |
+| [docs/requirements-matrix.md](./docs/requirements-matrix.md) | Relaticle traceability (Phase B) |
 
 ## Planning playbooks
 

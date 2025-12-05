@@ -17,10 +17,10 @@ Aligned with `planning/` playbooks (repo root). **Guideline:** reorder if a vert
 
 ## Phase 3 — Scaffold
 
-- [ ] pnpm + Turborepo; `apps/web`, `apps/api`, `apps/worker`
-- [ ] `packages/shared`, `packages/ai`, `packages/config`, `packages/ui`
-- [ ] Prisma schema + first migration + seed
-- [ ] ESLint, Prettier, Husky, CI workflow
+- [x] pnpm + Turborepo; `apps/web`, `apps/api`, `apps/worker`
+- [x] `packages/shared`, `packages/ai`, `packages/config`, `packages/ui`
+- [ ] Prisma schema + first migration + seed (skeleton only until Phase D)
+- [x] ESLint, Prettier, Husky, CI workflow
 - [x] `infra/` optional compose for Redis/Postgres (see `infra/README.md`)
 
 ## Phase 4 — Backend core
