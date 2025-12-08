@@ -3,8 +3,227 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// Models and migrations ship in Phase D.
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ParentEntityType {
+  LEAD
+  CONTACT
+  COMPANY
+}
+
+model User {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  passwordHash     String   @map("password_hash")
+  name             String?
+  preferredTeamId  String?  @map("preferred_team_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  memberships   TeamMember[]
+  ownedLeads    Lead[]       @relation("LeadOwner")
+  tasksAssigned Task[]       @relation("TaskAssignee")
+  activities    Activity[]
+
+  preferredTeam Team? @relation(fields: [preferredTeamId], references: [id], onDelete: SetNull)
+
+  @@map("users")
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members        TeamMember[]
+  companies      Company[]
+  contacts       Contact[]
+  pipelineStages PipelineStage[]
+  leads          Lead[]
+  tasks          Task[]
+  notes          Note[]
+  activities     Activity[]
+  attachments    Attachment[]
+  preferredBy    User[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  role      TeamRole @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@map("team_members")
+}
+
+model Company {
+  id        String    @id @default(uuid())
+  teamId    String    @map("team_id")
+  name      String
+  website   String?
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contacts Contact[]
+  leads    Lead[]
+
+  @@index([teamId, updatedAt(sort: Desc)])
+  @@map("companies")
+}
+
+model Contact {
+  id        String    @id @default(uuid())
+  teamId    String    @map("team_id")
+  companyId String?   @map("company_id")
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  email     String?
+  phone     String?
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads   Lead[]
+
+  @@index([teamId, updatedAt(sort: Desc)])
+  @@map("contacts")
+}
+
+model PipelineStage {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  name      String
+  sortOrder Int      @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  team  Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  leads Lead[]
+
+  @@index([teamId, sortOrder])
+  @@map("pipeline_stages")
+}
+
+model Lead {
+  id        String       @id @default(uuid())
+  teamId    String       @map("team_id")
+  title     String
+  value     Decimal?     @db.Decimal(14, 2)
+  priority  LeadPriority @default(MEDIUM)
+  stageId   String       @map("stage_id")
+  companyId String?      @map("company_id")
+  contactId String?      @map("contact_id")
+  ownerId   String?      @map("owner_id")
+  deletedAt DateTime?    @map("deleted_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  stage   PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  company Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner   User?         @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, updatedAt(sort: Desc)])
+  @@index([teamId, stageId])
+  @@index([teamId, ownerId])
+  @@map("leads")
+}
+
+model Task {
+  id          String           @id @default(uuid())
+  teamId      String           @map("team_id")
+  parentType  ParentEntityType @map("parent_type")
+  parentId    String           @map("parent_id")
+  title       String
+  done        Boolean          @default(false)
+  assigneeId  String?          @map("assignee_id")
+  dueAt       DateTime?        @map("due_at")
+  deletedAt   DateTime?        @map("deleted_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  team     Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, parentType, parentId])
+  @@map("tasks")
+}
+
+model Note {
+  id         String           @id @default(uuid())
+  teamId     String           @map("team_id")
+  parentType ParentEntityType @map("parent_type")
+  parentId   String           @map("parent_id")
+  body       String
+  deletedAt  DateTime?        @map("deleted_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, parentType, parentId])
+  @@map("notes")
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  teamId      String   @map("team_id")
+  actorUserId String   @map("actor_user_id")
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  action      String
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  team  Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, entityType, entityId, createdAt(sort: Desc)])
+  @@map("activities")
+}
+
+model Attachment {
+  id          String           @id @default(uuid())
+  teamId      String           @map("team_id")
+  parentType  ParentEntityType @map("parent_type")
+  parentId    String           @map("parent_id")
+  storageKey  String           @map("storage_key")
+  mimeType    String           @map("mime_type")
+  size        Int
+  filename    String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, parentType, parentId])
+  @@map("attachments")
+}
