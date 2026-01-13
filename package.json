@@ -7,6 +7,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "supabase": "npx supabase@latest",
+    "db:supabase:link": "npx supabase@latest link --project-ref voyzrqyitudbkcjavzum",
+    "db:supabase:push": "npx supabase@latest db push",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"

@@ -22,12 +22,14 @@
 - BullMQ + Redis: optional jobs — e.g. refresh cached summary, future email, import chunk processing.
 - Share job payload types via `packages/shared`.
 
+**Status:** Worker wiring is tracked in **[`development-plan.md`](./development-plan.md) section D** and [`docs/roadmap.md`](../docs/roadmap.md) **Phase 7** (not started; `apps/worker` is still a scaffold).
+
 ## Stretch (guideline)
 
 - **MCP-lite**: thin HTTP surface that exposes the same use-cases as structured “tools” for demos — only if time allows; document security (auth, rate limits).
 
 ## Exit criteria
 
-- [ ] All three endpoints demoable with real keys.
-- [ ] Prompts editable without touching Nest controllers.
-- [ ] Worker runs with `REDIS_URL` when jobs exist.
+- [x] All three endpoints demoable with real keys (`POST /v1/ai/lead-summary`, `next-actions`, `outreach-draft`).
+- [x] Prompts editable without touching Nest controllers (`packages/ai` builders consumed by `AiService`).
+- [ ] Worker runs with `REDIS_URL` when jobs exist — see **Phase 7** / [`development-plan.md`](./development-plan.md) section D.

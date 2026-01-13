@@ -32,4 +32,8 @@ jobs:
       - name: Prisma validate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_validate
-        run: pnpm --filter @microlead-crm/api exec prisma validate
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ci_validate
+        run: pnpm --filter @microlead-crm/api run db:validate
+
+      - name: API e2e (health)
+        run: pnpm --filter @microlead-crm/api run test:e2e
