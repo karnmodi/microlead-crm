@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -36,10 +37,20 @@ export default function KanbanPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Move cards between stages (PATCH lead). MVP: select new stage per card.
-      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Move cards between stages (PATCH lead). MVP: select new stage per card.
+          </p>
+        </div>
+        <Link
+          href="/app/leads/new"
+          className="inline-flex w-fit rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          New lead
+        </Link>
+      </div>
       <div className="mt-8 flex gap-4 overflow-x-auto pb-4">
         {data?.stages.map(({ stage, leads }) => (
           <section
@@ -56,7 +67,12 @@ export default function KanbanPage() {
                   key={lead.id}
                   className="rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-950"
                 >
-                  <p className="font-medium">{lead.title}</p>
+                  <Link
+                    href={`/app/leads/${lead.id}`}
+                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    {lead.title}
+                  </Link>
                   <label className="mt-2 block text-xs text-zinc-500">
                     Move to
                     <select
