@@ -15,6 +15,10 @@ export function setSession(token: string, teamId: string | null) {
   if (teamId) localStorage.setItem("ml_team_id", teamId);
 }
 
+export function setStoredTeamId(teamId: string) {
+  localStorage.setItem("ml_team_id", teamId);
+}
+
 export function clearSession() {
   localStorage.removeItem("ml_token");
   localStorage.removeItem("ml_team_id");
@@ -38,11 +42,18 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
     data = { raw: text };
   }
   if (!res.ok) {
-    const msg =
-      typeof data === "object" && data && "message" in data
-        ? String((data as { message: unknown }).message)
-        : res.statusText;
-    throw new Error(msg || `HTTP ${res.status}`);
+    let msg = res.statusText;
+    if (typeof data === "object" && data && "message" in data) {
+      const m = (data as { message: unknown }).message;
+      msg = Array.isArray(m) ? m.join(", ") : String(m);
+    }
+    const code =
+      typeof data === "object" && data && "code" in data
+        ? String((data as { code: unknown }).code)
+        : "";
+    const err = new Error(msg || `HTTP ${res.status}`) as Error & { code?: string };
+    if (code) err.code = code;
+    throw err;
   }
   return data as T;
 }

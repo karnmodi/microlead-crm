@@ -3,13 +3,29 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { clearSession, getStoredTeamId, getStoredToken } from "@/lib/api";
+import { clearSession, getStoredToken } from "@/lib/api";
+import { CommandBar } from "@/components/CommandBar";
+import { TeamSwitcher } from "@/components/TeamSwitcher";
 
 const links = [
-  { href: "/app", label: "Dashboard" },
-  { href: "/app/companies", label: "Companies" },
-  { href: "/app/leads/kanban", label: "Pipeline" },
-];
+  { href: "/app", label: "Dashboard", match: (p: string) => p === "/app" },
+  {
+    href: "/app/companies",
+    label: "Companies",
+    match: (p: string) => p.startsWith("/app/companies"),
+  },
+  {
+    href: "/app/contacts",
+    label: "Contacts",
+    match: (p: string) => p.startsWith("/app/contacts"),
+  },
+  {
+    href: "/app/leads/kanban",
+    label: "Pipeline",
+    match: (p: string) => p.startsWith("/app/leads"),
+  },
+  { href: "/app/tasks", label: "Tasks", match: (p: string) => p.startsWith("/app/tasks") },
+] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -39,17 +55,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={l.href}
                 href={l.href}
                 className={`rounded-md px-3 py-1.5 transition hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-                  pathname === l.href ? "bg-zinc-100 font-medium dark:bg-zinc-800" : ""
+                  l.match(pathname) ? "bg-zinc-100 font-medium dark:bg-zinc-800" : ""
                 }`}
               >
                 {l.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <span className="hidden max-w-[8rem] truncate sm:inline" title={getStoredTeamId() ?? ""}>
-              team {getStoredTeamId()?.slice(0, 8) ?? "—"}…
-            </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <CommandBar />
+            <TeamSwitcher />
             <button
               type="button"
               onClick={logout}
