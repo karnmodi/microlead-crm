@@ -35,20 +35,20 @@
 
 Execute roughly **in this order** (vertical slice first).
 
-| Step | PRD ref      | Status          | Notes                                                                                                                                                               |
-| ---- | ------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1   | §5.2         | **Done**        | Login/register, app shell, dashboard counts ([`apps/web/src/app`](../apps/web/src/app/)).                                                                           |
-| B2   | §5.2         | **Done**        | Companies **list** (read-only) ([`app/companies/page.tsx`](../apps/web/src/app/app/companies/page.tsx)).                                                            |
-| B3   | §5.2         | **Done**        | Pipeline kanban + stage move ([`app/leads/kanban/page.tsx`](../apps/web/src/app/app/leads/kanban/page.tsx)).                                                        |
-| B4   | §5.2, §10.1b | **Not started** | **Lead detail** page: header, company/contact links, key fields.                                                                                                    |
-| B5   | §5.2, §10.1b | **Not started** | **Activity timeline** on lead detail (`GET /v1/activities?...`).                                                                                                    |
-| B6   | §5.2, §7.2   | **Not started** | **AI panel** on lead detail: summary, next actions, outreach (`POST /v1/ai/*`), loading/errors.                                                                     |
-| B7   | §5.2, §10.1b | **Not started** | **Contacts** nav + list + detail (+ timeline optional).                                                                                                             |
-| B8   | §5.2, §10.1b | **Not started** | **CRUD forms** for companies (create/edit/delete from UI).                                                                                                          |
-| B9   | §5.2, §10.1b | **Not started** | **CRUD forms** for contacts, leads, tasks, notes (reuse patterns from B8).                                                                                          |
-| B10  | §5.2, §10.1b | **Not started** | **Tasks** surface (dedicated page or tabs).                                                                                                                         |
-| B11  | §5.2, §10.1b | **Not started** | **Command / search bar** (global; calls `/v1/search`).                                                                                                              |
-| B12  | §6.1, §10.1b | **Partial**     | **Team context**: UI shows team id ([`AppShell.tsx`](../apps/web/src/components/AppShell.tsx)); **switcher** + `PATCH /v1/users/me/preferred-team` not wired in UI. |
+| Step | PRD ref      | Status   | Notes                                                                                                                                                                   |
+| ---- | ------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1   | §5.2         | **Done** | Login/register, app shell, dashboard counts ([`apps/web/src/app`](../apps/web/src/app/)).                                                                               |
+| B2   | §5.2         | **Done** | Companies **list** (read-only) ([`app/companies/page.tsx`](../apps/web/src/app/app/companies/page.tsx)).                                                                |
+| B3   | §5.2         | **Done** | Pipeline kanban + stage move ([`app/leads/kanban/page.tsx`](../apps/web/src/app/app/leads/kanban/page.tsx)).                                                            |
+| B4   | §5.2, §10.1b | **Done** | **Lead detail** [`/app/leads/[id]`](../apps/web/src/app/app/leads/[id]/page.tsx): header, links, edit/delete.                                                           |
+| B5   | §5.2, §10.1b | **Done** | **Activity timeline** on lead detail (`GET /v1/activities?entityType=LEAD&entityId=…`).                                                                                 |
+| B6   | §5.2, §7.2   | **Done** | **AI panel** on lead detail + next-actions on contact detail (`POST /v1/ai/*`).                                                                                         |
+| B7   | §5.2, §10.1b | **Done** | **Contacts** nav, list, detail, timeline, notes ([`contacts/`](../apps/web/src/app/app/contacts/)).                                                                     |
+| B8   | §5.2, §10.1b | **Done** | **CRUD** companies: [`new`](../apps/web/src/app/app/companies/new/page.tsx), [`[id]`](../apps/web/src/app/app/companies/[id]/page.tsx).                                 |
+| B9   | §5.2, §10.1b | **Done** | **CRUD** contacts, leads ([`leads/new`](../apps/web/src/app/app/leads/new/page.tsx)), tasks ([`tasks`](../apps/web/src/app/app/tasks/page.tsx)), notes on detail pages. |
+| B10  | §5.2, §10.1b | **Done** | **Tasks** [`/app/tasks`](../apps/web/src/app/app/tasks/page.tsx); tasks on lead/contact detail.                                                                         |
+| B11  | §5.2, §10.1b | **Done** | **Command bar** [`CommandBar.tsx`](../apps/web/src/components/CommandBar.tsx) → `/v1/search` (⌘K).                                                                      |
+| B12  | §6.1, §10.1b | **Done** | **Team switcher** [`TeamSwitcher.tsx`](../apps/web/src/components/TeamSwitcher.tsx) + `PATCH /v1/users/me/preferred-team` + query cache clear.                          |
 
 ---
 

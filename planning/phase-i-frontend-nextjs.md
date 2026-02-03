@@ -34,21 +34,21 @@ Canonical ordered steps: **[`development-plan.md`](./development-plan.md) sectio
 
 ## Screen checklist (sync with development-plan B)
 
-| Item                                               | Status      |
-| -------------------------------------------------- | ----------- |
-| Login / register                                   | Done        |
-| App shell + dashboard                              | Done        |
-| Companies list                                     | Done        |
-| Pipeline kanban                                    | Done        |
-| Lead detail + timeline                             | Not started |
-| AI actions on lead (and optionally contact) detail | Not started |
-| Contacts list + detail                             | Not started |
-| CRUD forms (company, contact, lead, task, note)    | Not started |
-| Tasks page / surface                               | Not started |
-| Command / search bar                               | Not started |
-| Team switcher + preferred team                     | Not started |
+| Item                                               | Status |
+| -------------------------------------------------- | ------ |
+| Login / register                                   | Done   |
+| App shell + dashboard                              | Done   |
+| Companies list                                     | Done   |
+| Pipeline kanban                                    | Done   |
+| Lead detail + timeline                             | Done   |
+| AI actions on lead (and optionally contact) detail | Done   |
+| Contacts list + detail                             | Done   |
+| CRUD forms (company, contact, lead, task, note)    | Done   |
+| Tasks page / surface                               | Done   |
+| Command / search bar                               | Done   |
+| Team switcher + preferred team                     | Done   |
 
 ## Exit criteria
 
-- [ ] Demo script runnable **entirely in UI** — blocked until lead detail, timeline, and core CRUD paths exist ([`development-plan.md`](./development-plan.md) B4–B11).
-- [ ] No console errors on happy path; **team switch** clears/refetches queries (depends on team switcher UI — B12).
+- [x] Demo script runnable **entirely in UI** — lead detail, timeline, core CRUD, search, team switch ([`development-plan.md`](./development-plan.md) B4–B12).
+- [x] **Team switch** clears/refetches queries (`TeamSwitcher` + `queryClient.clear()`).

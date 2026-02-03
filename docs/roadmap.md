@@ -37,14 +37,14 @@ Aligned with [`planning/development-plan.md`](../planning/development-plan.md) (
 - [x] Shell, auth, dashboard (`/app`, TanStack Query)
 - [x] Companies **list** (read-only list view)
 - [x] Kanban board / pipeline (`/app/leads/kanban`, stage move via select + `PATCH /leads/:id`)
-- [ ] Contacts: nav + list + detail
-- [ ] Leads: **detail** view (not only kanban cards)
-- [ ] Full **CRUD forms** (create/edit) for companies, contacts, leads, tasks, notes
-- [ ] **Activity timeline** on lead/contact (and optionally company) detail
-- [ ] **Tasks** page or embedded task management in UI
-- [ ] **Command bar** / global search UI (`/v1/search` exists)
-- [ ] **AI actions** in UI (wire `POST /v1/ai/*`)
-- [ ] **Team switcher** (preferred team API exists; UI switcher TODO)
+- [x] Contacts: nav + list + detail
+- [x] Leads: **detail** view (not only kanban cards)
+- [x] Full **CRUD forms** (create/edit) for companies, contacts, leads, tasks, notes
+- [x] **Activity timeline** on lead/contact (and optionally company) detail
+- [x] **Tasks** page or embedded task management in UI
+- [x] **Command bar** / global search UI (`/v1/search` exists)
+- [x] **AI actions** in UI (wire `POST /v1/ai/*`)
+- [x] **Team switcher** (preferred team API + UI switcher)
 
 ## Phase 6 — Quality
 

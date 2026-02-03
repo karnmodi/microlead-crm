@@ -31,3 +31,4 @@ pnpm-debug.log*
 
 # Test / coverage
 coverage/
+apps/web/tsconfig.tsbuildinfo
