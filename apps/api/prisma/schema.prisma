@@ -26,6 +26,12 @@ enum ParentEntityType {
   COMPANY
 }
 
+enum LeadStatus {
+  OPEN
+  WON
+  LOST
+}
+
 model User {
   id               String   @id @default(uuid())
   email            String   @unique
@@ -36,6 +42,7 @@ model User {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   memberships   TeamMember[]
+  invitesCreated TeamInvite[] @relation("InviteCreatedBy")
   ownedLeads    Lead[]       @relation("LeadOwner")
   tasksAssigned Task[]       @relation("TaskAssignee")
   activities    Activity[]
@@ -52,6 +59,7 @@ model Team {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   members        TeamMember[]
+  invites        TeamInvite[]
   companies      Company[]
   contacts       Contact[]
   pipelineStages PipelineStage[]
@@ -80,14 +88,35 @@ model TeamMember {
   @@map("team_members")
 }
 
+model TeamInvite {
+  id              String    @id @default(uuid())
+  teamId          String    @map("team_id")
+  email           String
+  role            TeamRole  @default(MEMBER)
+  tokenHash       String    @unique @map("token_hash")
+  expiresAt       DateTime  @map("expires_at")
+  createdByUserId String    @map("created_by_user_id")
+  acceptedAt      DateTime? @map("accepted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User @relation("InviteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, email])
+  @@map("team_invites")
+}
+
 model Company {
-  id        String    @id @default(uuid())
-  teamId    String    @map("team_id")
-  name      String
-  website   String?
-  deletedAt DateTime? @map("deleted_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  teamId         String    @map("team_id")
+  name           String
+  website        String?
+  industry       String?
+  description    String?   @db.Text
+  employeeCount  Int?      @map("employee_count")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   contacts Contact[]
@@ -98,14 +127,16 @@ model Company {
 }
 
 model Contact {
-  id        String    @id @default(uuid())
-  teamId    String    @map("team_id")
-  companyId String?   @map("company_id")
-  firstName String    @map("first_name")
-  lastName  String    @map("last_name")
-  email     String?
-  phone     String?
-  deletedAt DateTime? @map("deleted_at")
+  id          String    @id @default(uuid())
+  teamId      String    @map("team_id")
+  companyId   String?   @map("company_id")
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  email       String?
+  phone       String?
+  jobTitle    String?   @map("job_title")
+  linkedinUrl String?   @map("linkedin_url")
+  deletedAt   DateTime? @map("deleted_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
@@ -133,18 +164,27 @@ model PipelineStage {
 }
 
 model Lead {
-  id        String       @id @default(uuid())
-  teamId    String       @map("team_id")
-  title     String
-  value     Decimal?     @db.Decimal(14, 2)
-  priority  LeadPriority @default(MEDIUM)
-  stageId   String       @map("stage_id")
-  companyId String?      @map("company_id")
-  contactId String?      @map("contact_id")
-  ownerId   String?      @map("owner_id")
-  deletedAt DateTime?    @map("deleted_at")
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id                 String       @id @default(uuid())
+  teamId             String       @map("team_id")
+  title              String
+  description        String?      @db.Text
+  value              Decimal?     @db.Decimal(14, 2)
+  currency           String       @default("USD")
+  probability        Int?
+  source             String?
+  status             LeadStatus   @default(OPEN)
+  expectedCloseDate  DateTime?    @map("expected_close_date")
+  closedAt           DateTime?    @map("closed_at")
+  lostReason         String?      @map("lost_reason")
+  tags               Json?
+  priority           LeadPriority @default(MEDIUM)
+  stageId            String       @map("stage_id")
+  companyId          String?      @map("company_id")
+  contactId          String?      @map("contact_id")
+  ownerId            String?      @map("owner_id")
+  deletedAt          DateTime?    @map("deleted_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
 
   team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   stage   PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
@@ -155,6 +195,8 @@ model Lead {
   @@index([teamId, updatedAt(sort: Desc)])
   @@index([teamId, stageId])
   @@index([teamId, ownerId])
+  @@index([teamId, status])
+  @@index([teamId, expectedCloseDate])
   @@map("leads")
 }
 
