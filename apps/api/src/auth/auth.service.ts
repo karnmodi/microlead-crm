@@ -19,6 +19,7 @@ export class AuthService {
   }
 
   async register(email: string, password: string, name?: string) {
+    email = email.trim().toLowerCase();
     const taken = await this.prisma.user.findUnique({ where: { email } });
     if (taken) throw new ConflictException("Email already registered");
 
@@ -48,6 +49,7 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
+    email = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException("Invalid credentials");
     const ok = await bcrypt.compare(password, user.passwordHash);
