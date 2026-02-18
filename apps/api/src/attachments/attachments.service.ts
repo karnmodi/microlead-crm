@@ -71,6 +71,21 @@ export class AttachmentsService implements OnModuleInit {
     return row;
   }
 
+  async listForParent(teamId: string, parentType: ParentEntityType, parentId: string) {
+    await this.assertParent(teamId, parentType, parentId);
+    return this.prisma.attachment.findMany({
+      where: { teamId, parentType, parentId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        filename: true,
+        mimeType: true,
+        size: true,
+        createdAt: true,
+      },
+    });
+  }
+
   async get(teamId: string, id: string) {
     const row = await this.prisma.attachment.findFirst({
       where: { id, teamId },

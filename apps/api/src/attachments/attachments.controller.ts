@@ -5,8 +5,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
   Post,
+  Query,
   StreamableFile,
   UploadedFile,
   UseGuards,
@@ -17,9 +19,10 @@ import { IsEnum, IsUUID } from "class-validator";
 import { memoryStorage } from "multer";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { AttachmentsService } from "./attachments.service";
-import { ParentEntityType } from "@prisma/client";
+import { ParentEntityType, TeamRole } from "@prisma/client";
 
 class UploadMetaDto {
   @IsEnum(ParentEntityType)
@@ -33,6 +36,15 @@ class UploadMetaDto {
 @UseGuards(TeamGuard)
 export class AttachmentsController {
   constructor(private readonly attachments: AttachmentsService) {}
+
+  @Get()
+  list(
+    @CurrentTeam() team: TeamContext,
+    @Query("parentType", new ParseEnumPipe(ParentEntityType)) parentType: ParentEntityType,
+    @Query("parentId", ParseUUIDPipe) parentId: string,
+  ) {
+    return this.attachments.listForParent(team.teamId, parentType, parentId);
+  }
 
   @Post("upload")
   @UseInterceptors(
@@ -66,6 +78,7 @@ export class AttachmentsController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

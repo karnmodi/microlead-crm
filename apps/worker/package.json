@@ -5,11 +5,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/main.ts",
+    "enqueue:heartbeat": "tsx src/enqueue-heartbeat.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "echo \"no tests yet\""
   },
   "dependencies": {
-    "@microlead-crm/shared": "workspace:*"
+    "@microlead-crm/shared": "workspace:*",
+    "bullmq": "^5.73.4",
+    "ioredis": "^5.10.1"
   },
   "devDependencies": {
     "@microlead-crm/config": "workspace:*",

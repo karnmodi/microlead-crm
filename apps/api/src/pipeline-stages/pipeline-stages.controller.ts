@@ -9,9 +9,11 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
+import { TeamRole } from "@prisma/client";
 import { ArrayMinSize, IsArray, IsString, IsUUID, MinLength } from "class-validator";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { PipelineStagesService } from "./pipeline-stages.service";
 
@@ -73,6 +75,7 @@ export class PipelineStagesController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

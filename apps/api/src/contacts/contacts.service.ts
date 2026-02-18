@@ -58,6 +58,8 @@ export class ContactsService {
       email?: string;
       phone?: string;
       companyId?: string;
+      jobTitle?: string;
+      linkedinUrl?: string;
     },
   ) {
     if (body.companyId) {
@@ -74,6 +76,8 @@ export class ContactsService {
         email: body.email,
         phone: body.phone,
         companyId: body.companyId,
+        jobTitle: body.jobTitle,
+        linkedinUrl: body.linkedinUrl,
       },
     });
     await this.activities.append(teamId, userId, "CONTACT", row.id, "contact.created", {
@@ -92,6 +96,8 @@ export class ContactsService {
       email: string;
       phone: string;
       companyId: string | null;
+      jobTitle: string | null;
+      linkedinUrl: string | null;
     }>,
   ) {
     await this.get(teamId, id);

@@ -11,9 +11,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Type } from "class-transformer";
+import { TeamRole } from "@prisma/client";
 import { IsInt, IsOptional, IsString, Max, Min, MinLength } from "class-validator";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { CompaniesService } from "./companies.service";
 
@@ -25,6 +27,19 @@ class CompanyCreateDto {
   @IsOptional()
   @IsString()
   website?: string;
+
+  @IsOptional()
+  @IsString()
+  industry?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  employeeCount?: number;
 }
 
 class CompanyUpdateDto {
@@ -36,6 +51,19 @@ class CompanyUpdateDto {
   @IsOptional()
   @IsString()
   website?: string;
+
+  @IsOptional()
+  @IsString()
+  industry?: string | null;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  employeeCount?: number | null;
 }
 
 class CompanyListQuery {
@@ -49,7 +77,7 @@ class CompanyListQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(200)
   limit = 20;
 
   @IsOptional()
@@ -92,6 +120,7 @@ export class CompaniesController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

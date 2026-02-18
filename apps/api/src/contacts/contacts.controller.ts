@@ -21,8 +21,10 @@ import {
   Min,
   MinLength,
 } from "class-validator";
+import { TeamRole } from "@prisma/client";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { ContactsService } from "./contacts.service";
 
@@ -46,6 +48,14 @@ class ContactCreateDto {
   @IsOptional()
   @IsUUID()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  jobTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  linkedinUrl?: string;
 }
 
 class ContactUpdateDto {
@@ -70,6 +80,14 @@ class ContactUpdateDto {
   @IsOptional()
   @IsUUID()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  jobTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  linkedinUrl?: string | null;
 }
 
 class ContactListQuery {
@@ -83,7 +101,7 @@ class ContactListQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(200)
   limit = 20;
 
   @IsOptional()
@@ -130,6 +148,7 @@ export class ContactsController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

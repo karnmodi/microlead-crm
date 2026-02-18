@@ -40,9 +40,20 @@ export class CompaniesService {
     return row;
   }
 
-  async create(teamId: string, userId: string, body: { name: string; website?: string }) {
+  async create(
+    teamId: string,
+    userId: string,
+    body: { name: string; website?: string; industry?: string; description?: string; employeeCount?: number },
+  ) {
     const row = await this.prisma.company.create({
-      data: { teamId, name: body.name, website: body.website },
+      data: {
+        teamId,
+        name: body.name,
+        website: body.website,
+        industry: body.industry,
+        description: body.description,
+        employeeCount: body.employeeCount,
+      },
     });
     await this.activities.append(teamId, userId, "COMPANY", row.id, "company.created", {
       name: row.name,
@@ -50,7 +61,18 @@ export class CompaniesService {
     return row;
   }
 
-  async update(teamId: string, userId: string, id: string, body: { name?: string; website?: string }) {
+  async update(
+    teamId: string,
+    userId: string,
+    id: string,
+    body: {
+      name?: string;
+      website?: string;
+      industry?: string | null;
+      description?: string | null;
+      employeeCount?: number | null;
+    },
+  ) {
     await this.get(teamId, id);
     const row = await this.prisma.company.update({
       where: { id },

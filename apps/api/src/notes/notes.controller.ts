@@ -12,9 +12,10 @@ import {
 } from "@nestjs/common";
 import { Type } from "class-transformer";
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from "class-validator";
-import { ParentEntityType } from "@prisma/client";
+import { ParentEntityType, TeamRole } from "@prisma/client";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { NotesService } from "./notes.service";
 
@@ -98,6 +99,7 @@ export class NotesController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

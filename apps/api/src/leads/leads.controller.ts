@@ -12,8 +12,12 @@ import {
 } from "@nestjs/common";
 import { Type } from "class-transformer";
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -22,9 +26,10 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { LeadPriority } from "@prisma/client";
+import { LeadPriority, LeadStatus, TeamRole } from "@prisma/client";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { LeadsService } from "./leads.service";
 
@@ -55,6 +60,38 @@ class LeadCreateDto {
   @IsOptional()
   @IsUUID()
   ownerId?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  probability?: number;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsEnum(LeadStatus)
+  status?: LeadStatus;
+
+  @IsOptional()
+  @IsDateString()
+  expectedCloseDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(50)
+  tags?: string[];
 }
 
 class LeadUpdateDto {
@@ -86,6 +123,46 @@ class LeadUpdateDto {
   @IsOptional()
   @IsUUID()
   ownerId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  probability?: number | null;
+
+  @IsOptional()
+  @IsString()
+  source?: string | null;
+
+  @IsOptional()
+  @IsEnum(LeadStatus)
+  status?: LeadStatus;
+
+  @IsOptional()
+  @IsDateString()
+  expectedCloseDate?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  closedAt?: string | null;
+
+  @IsOptional()
+  @IsString()
+  lostReason?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(50)
+  tags?: string[] | null;
 }
 
 class LeadListQuery {
@@ -113,6 +190,20 @@ class LeadListQuery {
   @IsOptional()
   @IsUUID()
   ownerId?: string;
+
+  @IsOptional()
+  @IsEnum(LeadStatus)
+  status?: LeadStatus;
+}
+
+class KanbanQuery {
+  @IsOptional()
+  @IsIn(["updatedAt", "value", "priority", "expectedCloseDate", "title"])
+  sortBy?: "updatedAt" | "value" | "priority" | "expectedCloseDate" | "title";
+
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sortOrder?: "asc" | "desc";
 }
 
 @Controller("leads")
@@ -121,8 +212,11 @@ export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
 
   @Get("kanban")
-  kanban(@CurrentTeam() team: TeamContext) {
-    return this.leads.kanban(team.teamId);
+  kanban(@CurrentTeam() team: TeamContext, @Query() query: KanbanQuery) {
+    return this.leads.kanban(team.teamId, {
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    });
   }
 
   @Get()
@@ -131,6 +225,7 @@ export class LeadsController {
       q: q.q,
       stageId: q.stageId,
       ownerId: q.ownerId,
+      status: q.status,
     });
   }
 
@@ -159,6 +254,7 @@ export class LeadsController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

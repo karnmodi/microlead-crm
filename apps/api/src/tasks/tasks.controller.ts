@@ -23,9 +23,10 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { ParentEntityType } from "@prisma/client";
+import { ParentEntityType, TeamRole } from "@prisma/client";
 import { CurrentTeam, type TeamContext } from "../common/decorators/current-team.decorator";
 import { CurrentUser, type AuthUser } from "../common/decorators/current-user.decorator";
+import { RequireTeamMinimumRole } from "../common/decorators/require-team-minimum-role.decorator";
 import { TeamGuard } from "../common/guards/team.guard";
 import { TasksService } from "./tasks.service";
 
@@ -134,6 +135,7 @@ export class TasksController {
   }
 
   @Delete(":id")
+  @RequireTeamMinimumRole(TeamRole.ADMIN)
   remove(
     @CurrentTeam() team: TeamContext,
     @CurrentUser() user: AuthUser,

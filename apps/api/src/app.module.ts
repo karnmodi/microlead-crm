@@ -9,6 +9,7 @@ import { AppService } from "./app.service";
 import { AttachmentsModule } from "./attachments/attachments.module";
 import { AuthModule } from "./auth/auth.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
+import { TeamMinimumRoleGuard } from "./common/guards/team-minimum-role.guard";
 import { CompaniesModule } from "./companies/companies.module";
 import { ContactsModule } from "./contacts/contacts.module";
 import { LeadsModule } from "./leads/leads.module";
@@ -44,6 +45,7 @@ import { UsersModule } from "./users/users.module";
   controllers: [AppController],
   providers: [
     AppService,
+    TeamMinimumRoleGuard,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
