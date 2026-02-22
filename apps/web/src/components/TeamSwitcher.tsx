@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, getStoredTeamId, setStoredTeamId } from "@/lib/api";
 
@@ -8,6 +9,7 @@ type Membership = { team: { id: string; name: string } };
 
 export function TeamSwitcher() {
   const qc = useQueryClient();
+  const router = useRouter();
   const [current, setCurrent] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,12 +31,15 @@ export function TeamSwitcher() {
       setStoredTeamId(teamId);
       setCurrent(teamId);
       qc.clear();
+      router.push("/app");
+      router.refresh();
+      setTimeout(() => window.location.reload(), 50);
     },
   });
 
   if (isLoading || !data?.length) {
     return (
-      <span className="hidden text-xs text-zinc-500 sm:inline">
+      <span className="hidden text-xs text-zinc-500 md:inline">
         {current ? `Team ${current.slice(0, 8)}…` : "—"}
       </span>
     );
@@ -47,7 +52,7 @@ export function TeamSwitcher() {
 
   return (
     <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-      <span className="hidden sm:inline">Workspace</span>
+      <span className="hidden md:inline">Workspace</span>
       <select
         value={current ?? data[0].team.id}
         onChange={(e) => switchTeam.mutate(e.target.value)}

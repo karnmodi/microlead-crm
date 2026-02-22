@@ -1,4 +1,12 @@
-const base = () => process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+/**
+ * API origin only (scheme + host + optional port). No path, no `/v1`.
+ * Strips a trailing `/v1` so misconfigured `NEXT_PUBLIC_API_URL=http://localhost:3001/v1`
+ * does not produce `/v1/v1/...` (404 on Nest).
+ */
+export function getApiOrigin(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").trim();
+  return raw.replace(/\/+$/, "").replace(/\/v1$/i, "");
+}
 
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -19,6 +27,19 @@ export function setStoredTeamId(teamId: string) {
   localStorage.setItem("ml_team_id", teamId);
 }
 
+export const INVITE_TOKEN_KEY = "ml_invite_token";
+
+export function getPendingInviteToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(INVITE_TOKEN_KEY);
+}
+
+export function setPendingInviteToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) localStorage.setItem(INVITE_TOKEN_KEY, token);
+  else localStorage.removeItem(INVITE_TOKEN_KEY);
+}
+
 export function clearSession() {
   localStorage.removeItem("ml_token");
   localStorage.removeItem("ml_team_id");
@@ -33,7 +54,7 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${base()}/v1${path}`, { ...init, headers });
+  const res = await fetch(`${getApiOrigin()}/v1${path}`, { ...init, headers });
   const text = await res.text();
   let data: unknown = null;
   try {

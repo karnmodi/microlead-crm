@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
 
 type SearchRes = {
@@ -13,6 +13,7 @@ type SearchRes = {
 
 export function CommandBar() {
   const router = useRouter();
+  const titleId = useId();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
@@ -48,28 +49,33 @@ export function CommandBar() {
         className="rounded-md border border-zinc-300 px-3 py-1.5 text-left text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         Search…
-        <kbd className="ml-2 hidden rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 sm:inline dark:bg-zinc-700 dark:text-zinc-300">
+        <kbd className="ml-2 hidden rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 md:inline dark:bg-zinc-700 dark:text-zinc-300">
           ⌘K
         </kbd>
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-20 md:pt-24"
           role="dialog"
           aria-modal="true"
+          aria-labelledby={titleId}
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
             onClick={(e) => e.stopPropagation()}
           >
+            <p id={titleId} className="sr-only">
+              Search workspace records
+            </p>
             <input
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search leads, companies, contacts…"
-              className="w-full rounded-t-xl border-b border-zinc-200 bg-transparent px-4 py-3 text-sm outline-none dark:border-zinc-700"
+              aria-label="Search query"
+              className="w-full rounded-t-xl border-b border-zinc-200 bg-white px-4 py-3.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <div className="max-h-80 overflow-auto p-2">
               {q.trim().length === 0 && (
