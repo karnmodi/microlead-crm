@@ -5,7 +5,7 @@
 **Status:** Living document — aligned with current monorepo implementation  
 **Last updated:** April 2026
 
-**Implementation status (April 2026):** **Backend / API MVP** is largely complete (auth, team-scoped CRUD, activities, search, attachments, three AI routes, `/v1`, CI smoke tests). **Web app MVP** is in progress (dashboard, companies list, pipeline kanban; no full CRUD forms, lead/contact detail, timeline, command bar, or AI UI yet). **Advanced AI** (PRD §7.7 / §10.2) not started. Granular steps: [`planning/development-plan.md`](../planning/development-plan.md).
+**Implementation status (April 2026):** **Backend / API MVP** is complete (auth, team-scoped CRUD, activities, search, attachments API, three AI routes, `/v1`, CI smoke tests). **Web app MVP** (PRD §10.1b) is shipped: shell, auth, dashboard, companies/contacts/leads CRUD, pipeline kanban, lead/contact/company detail, activity timelines, tasks, command bar, team switcher, AI actions in UI. **Advanced AI** (PRD §7.7.1–7.7.3 / §10.2 — cached summaries, multi-provider, agents, semantic search) remains on the roadmap. Granular steps: [`planning/development-plan.md`](../planning/development-plan.md).
 
 ---
 

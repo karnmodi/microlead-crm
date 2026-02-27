@@ -19,6 +19,8 @@ export default function NewContactPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
 
   const create = useMutation({
     mutationFn: () =>
@@ -30,6 +32,8 @@ export default function NewContactPage() {
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           companyId: companyId || undefined,
+          jobTitle: jobTitle.trim() || undefined,
+          linkedinUrl: linkedinUrl.trim() || undefined,
         }),
       }),
     onSuccess: (row) => {
@@ -39,7 +43,7 @@ export default function NewContactPage() {
   });
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight">New contact</h1>
       <form
         className="mt-6 space-y-4"
@@ -54,7 +58,7 @@ export default function NewContactPage() {
             required
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -63,7 +67,7 @@ export default function NewContactPage() {
             required
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -72,7 +76,7 @@ export default function NewContactPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -80,7 +84,7 @@ export default function NewContactPage() {
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -88,7 +92,7 @@ export default function NewContactPage() {
           <select
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           >
             <option value="">— None —</option>
             {companies.data?.data.map((c) => (
@@ -97,6 +101,24 @@ export default function NewContactPage() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Job title
+          <input
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          />
+        </label>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          LinkedIn URL
+          <input
+            type="url"
+            value={linkedinUrl}
+            onChange={(e) => setLinkedinUrl(e.target.value)}
+            placeholder="https://linkedin.com/in/…"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          />
         </label>
         {create.isError && (
           <p className="text-sm text-red-600">

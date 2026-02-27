@@ -65,6 +65,18 @@ Staging or CI should use a **branch database** or disposable project when runnin
 
 **`REDIS_URL`** is read by the BullMQ worker for queues and scheduled work. If you are not running the worker locally, you can leave it unset until you need it; when the worker is enabled, document the URL the same way as the database (managed Upstash / Redis Cloud, native `redis-server`, or **`infra/docker-compose.yml`**).
 
+#### Worker runbook (BullMQ)
+
+1. Ensure Redis is reachable (`REDIS_URL` in `.env`, same as API host if using Compose).
+2. Start the worker: `pnpm --filter @microlead-crm/worker dev` (or `build` + `node dist/main.js` in production).
+3. Enqueue a smoke job (shared queue name `microlead-crm`, job type `heartbeat`):
+
+   ```bash
+   pnpm --filter @microlead-crm/worker run enqueue:heartbeat
+   ```
+
+   You should see a log line from the worker such as `[microlead-crm] heartbeat ok at <ISO time>`.
+
 ### Optional local stack
 
 See **`infra/README.md`**. `infra/docker-compose.yml` can start Postgres and Redis on `localhost` for offline development. The app runs equally well against **managed** services — Compose is optional sugar, not architecture.
@@ -132,9 +144,13 @@ pnpm --filter @microlead-crm/api exec dotenv -e ../../.env -- prisma migrate res
 
 ## Screenshots
 
-- `TODO` — dashboard
-- `TODO` — lead kanban
-- `TODO` — lead detail + AI actions
+Place captures under `docs/screenshots/` when you have them (not committed by default). Suggested views:
+
+- Dashboard — overview + quick actions
+- Pipeline — kanban board
+- Lead detail — fields + AI + attachments
+
+**E2E:** API Jest e2e lives in `apps/api/test/`. Browser E2E (e.g. Playwright) is optional; add a project under `apps/web` when you want full UI regression coverage.
 
 ## Documentation
 

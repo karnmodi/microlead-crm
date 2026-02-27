@@ -11,6 +11,9 @@ export default function NewCompanyPage() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [description, setDescription] = useState("");
+  const [employeeCount, setEmployeeCount] = useState("");
 
   const create = useMutation({
     mutationFn: () =>
@@ -19,16 +22,21 @@ export default function NewCompanyPage() {
         body: JSON.stringify({
           name: name.trim(),
           website: website.trim() || undefined,
+          industry: industry.trim() || undefined,
+          description: description.trim() || undefined,
+          employeeCount:
+            employeeCount.trim() === "" ? undefined : Math.max(0, Number(employeeCount)),
         }),
       }),
     onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["companies"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
       router.replace(`/app/companies/${row.id}`);
     },
   });
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight">New company</h1>
       <form
         className="mt-6 space-y-4"
@@ -43,7 +51,7 @@ export default function NewCompanyPage() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -52,7 +60,34 @@ export default function NewCompanyPage() {
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="example.com"
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          />
+        </label>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Industry
+          <input
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          />
+        </label>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Description
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+          />
+        </label>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Employee count (approx.)
+          <input
+            type="number"
+            min={0}
+            value={employeeCount}
+            onChange={(e) => setEmployeeCount(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
         </label>
         {create.isError && (

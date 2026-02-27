@@ -5,6 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ActivityTimeline, type ActivityRow } from "@/components/ActivityTimeline";
+import { AiResponsePanel, AiSectionTitle } from "@/components/AiResponsePanel";
+import { DetailPageSkeleton } from "@/components/page-skeletons";
+import { AttachmentSection } from "@/components/AttachmentSection";
 import { api } from "@/lib/api";
 
 type ContactDetail = {
@@ -13,6 +16,8 @@ type ContactDetail = {
   lastName: string;
   email: string | null;
   phone: string | null;
+  jobTitle: string | null;
+  linkedinUrl: string | null;
   companyId: string | null;
   company: { id: string; name: string } | null;
 };
@@ -83,6 +88,8 @@ export default function ContactDetailPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
 
   function openEdit() {
     if (!contact.data) return;
@@ -91,6 +98,8 @@ export default function ContactDetailPage() {
     setEmail(contact.data.email ?? "");
     setPhone(contact.data.phone ?? "");
     setCompanyId(contact.data.companyId ?? "");
+    setJobTitle(contact.data.jobTitle ?? "");
+    setLinkedinUrl(contact.data.linkedinUrl ?? "");
     setEditOpen(true);
   }
 
@@ -104,6 +113,8 @@ export default function ContactDetailPage() {
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           companyId: companyId || null,
+          jobTitle: jobTitle.trim() || undefined,
+          linkedinUrl: linkedinUrl.trim() || undefined,
         }),
       }),
     onSuccess: () => {
@@ -162,7 +173,7 @@ export default function ContactDetailPage() {
       const err = e as Error & { code?: string };
       setAiError(
         err.code === "AI_NOT_CONFIGURED" || err.message.includes("not configured")
-          ? "AI is not configured (set OPENAI_API_KEY on the API)."
+          ? "AI is not configured (set Azure OpenAI or OPENAI_API_KEY on the API)."
           : err.message,
       );
     } finally {
@@ -170,7 +181,7 @@ export default function ContactDetailPage() {
     }
   }
 
-  if (contact.isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
+  if (contact.isLoading) return <DetailPageSkeleton />;
   if (contact.error || !contact.data) {
     return (
       <p className="text-sm text-red-600">
@@ -192,6 +203,19 @@ export default function ContactDetailPage() {
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             {[C.email, C.phone].filter(Boolean).join(" · ") || "No email or phone"}
           </p>
+          {C.jobTitle && (
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{C.jobTitle}</p>
+          )}
+          {C.linkedinUrl && (
+            <a
+              href={C.linkedinUrl.startsWith("http") ? C.linkedinUrl : `https://${C.linkedinUrl}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-sm text-blue-600 hover:underline dark:text-blue-400"
+            >
+              LinkedIn profile
+            </a>
+          )}
           {C.company && (
             <p className="mt-2 text-sm">
               <Link
@@ -239,7 +263,7 @@ export default function ContactDetailPage() {
               <input
                 value={fn}
                 onChange={(e) => setFn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -247,7 +271,7 @@ export default function ContactDetailPage() {
               <input
                 value={ln}
                 onChange={(e) => setLn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -256,7 +280,7 @@ export default function ContactDetailPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -264,7 +288,7 @@ export default function ContactDetailPage() {
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
@@ -272,7 +296,7 @@ export default function ContactDetailPage() {
               <select
                 value={companyId}
                 onChange={(e) => setCompanyId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               >
                 <option value="">— None —</option>
                 {companies.data?.data.map((c) => (
@@ -281,6 +305,23 @@ export default function ContactDetailPage() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
+              Job title
+              <input
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
+              LinkedIn URL
+              <input
+                type="url"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+              />
             </label>
           </div>
           <div className="mt-4 flex gap-2">
@@ -303,21 +344,30 @@ export default function ContactDetailPage() {
         </div>
       )}
 
-      <section>
-        <h2 className="text-lg font-semibold">AI</h2>
-        {aiError && <p className="mt-2 text-sm text-red-600">{aiError}</p>}
+      <AttachmentSection
+        parentType="CONTACT"
+        parentId={id}
+        queryKey={["contact", id]}
+      />
+
+      <section className="space-y-4" aria-busy={aiLoading}>
+        <AiSectionTitle
+          title="AI assistant"
+          subtitle="Suggested next steps based on this contact."
+        />
+        {aiError && <p className="text-sm text-red-600 dark:text-red-400">{aiError}</p>}
         <button
           type="button"
           onClick={() => void runNextActions()}
           disabled={aiLoading}
-          className="mt-3 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+          className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
         >
-          {aiLoading ? "…" : "Next actions"}
+          {aiLoading ? "Generating…" : "Next actions"}
         </button>
-        {actions && (
-          <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50/80 p-4 text-sm whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-900/50">
-            {actions}
-          </div>
+        {(actions || aiLoading) && (
+          <AiResponsePanel variant="actions" label="Suggested actions" loading={aiLoading}>
+            {actions ?? ""}
+          </AiResponsePanel>
         )}
       </section>
 
@@ -336,7 +386,7 @@ export default function ContactDetailPage() {
             placeholder="New task…"
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
-            className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"
@@ -378,7 +428,7 @@ export default function ContactDetailPage() {
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             rows={3}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"

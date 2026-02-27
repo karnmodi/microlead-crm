@@ -5,12 +5,17 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ActivityTimeline, type ActivityRow } from "@/components/ActivityTimeline";
+import { DetailPageSkeleton } from "@/components/page-skeletons";
+import { AttachmentSection } from "@/components/AttachmentSection";
 import { api } from "@/lib/api";
 
 type CompanyDetail = {
   id: string;
   name: string;
   website: string | null;
+  industry: string | null;
+  description: string | null;
+  employeeCount: number | null;
 };
 
 type ActivitiesRes = { data: ActivityRow[] };
@@ -59,11 +64,19 @@ export default function CompanyDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [description, setDescription] = useState("");
+  const [employeeCount, setEmployeeCount] = useState("");
 
   function openEdit() {
     if (!company.data) return;
     setName(company.data.name);
     setWebsite(company.data.website ?? "");
+    setIndustry(company.data.industry ?? "");
+    setDescription(company.data.description ?? "");
+    setEmployeeCount(
+      company.data.employeeCount != null ? String(company.data.employeeCount) : "",
+    );
     setEditOpen(true);
   }
 
@@ -74,6 +87,12 @@ export default function CompanyDetailPage() {
         body: JSON.stringify({
           name: name.trim(),
           website: website.trim() || undefined,
+          industry: industry.trim() || undefined,
+          description: description.trim() || undefined,
+          employeeCount:
+            employeeCount.trim() === ""
+              ? undefined
+              : Math.max(0, Number(employeeCount)),
         }),
       }),
     onSuccess: () => {
@@ -88,11 +107,12 @@ export default function CompanyDetailPage() {
     mutationFn: () => api(`/companies/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["companies"] });
+      void qc.invalidateQueries({ queryKey: ["dashboard"] });
       router.replace("/app/companies");
     },
   });
 
-  if (company.isLoading) return <p className="text-sm text-zinc-500">Loading…</p>;
+  if (company.isLoading) return <DetailPageSkeleton />;
   if (company.error || !company.data) {
     return (
       <p className="text-sm text-red-600">
@@ -118,6 +138,18 @@ export default function CompanyDetailPage() {
             >
               {C.website}
             </a>
+          )}
+          {(C.industry || C.employeeCount != null) && (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              {[C.industry, C.employeeCount != null ? `${C.employeeCount} employees` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          {C.description && (
+            <p className="mt-3 max-w-2xl text-sm text-zinc-700 whitespace-pre-wrap dark:text-zinc-300">
+              {C.description}
+            </p>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -150,13 +182,13 @@ export default function CompanyDetailPage() {
       {editOpen && (
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-sm font-semibold">Edit company</h2>
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Name
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -164,7 +196,34 @@ export default function CompanyDetailPage() {
               <input
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Industry
+              <input
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
+              Description
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Employee count
+              <input
+                type="number"
+                min={0}
+                value={employeeCount}
+                onChange={(e) => setEmployeeCount(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
             </label>
           </div>
@@ -188,6 +247,12 @@ export default function CompanyDetailPage() {
         </div>
       )}
 
+      <AttachmentSection
+        parentType="COMPANY"
+        parentId={id}
+        queryKey={["company", id]}
+      />
+
       <section>
         <h2 className="text-lg font-semibold">Notes</h2>
         <form
@@ -202,7 +267,7 @@ export default function CompanyDetailPage() {
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             rows={3}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"
