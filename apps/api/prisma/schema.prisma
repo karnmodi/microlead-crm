@@ -32,6 +32,10 @@ enum LeadStatus {
   LOST
 }
 
+enum EmailDirection {
+  OUTBOUND
+}
+
 model User {
   id               String   @id @default(uuid())
   email            String   @unique
@@ -46,6 +50,7 @@ model User {
   ownedLeads    Lead[]       @relation("LeadOwner")
   tasksAssigned Task[]       @relation("TaskAssignee")
   activities    Activity[]
+  sentEmails    LeadEmail[]  @relation("LeadEmailSender")
 
   preferredTeam Team? @relation(fields: [preferredTeamId], references: [id], onDelete: SetNull)
 
@@ -68,9 +73,33 @@ model Team {
   notes          Note[]
   activities     Activity[]
   attachments    Attachment[]
+  leadEmails     LeadEmail[]
+  leadSummaries  LeadSummaryCache[]
+  aiSettings     TeamAiSettings?
   preferredBy    User[]
 
   @@map("teams")
+}
+
+model TeamAiSettings {
+  id                String   @id @default(uuid())
+  teamId            String   @unique @map("team_id")
+  businessFocus     String?  @map("business_focus")
+  crmPurpose        String?  @map("crm_purpose")
+  targetAudience    String?  @map("target_audience")
+  toneGuidelines    String?  @map("tone_guidelines")
+  emailSignature    String?  @map("email_signature")
+  defaultClosing    String?  @map("default_closing")
+  languageStyle     String?  @map("language_style")
+  responseVerbosity Int      @default(2) @map("response_verbosity")
+  reasoningDepth    Int      @default(2) @map("reasoning_depth")
+  actionHorizonDays Int      @default(7) @map("action_horizon_days")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_ai_settings")
 }
 
 model TeamMember {
@@ -143,6 +172,7 @@ model Contact {
   team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   leads   Lead[]
+  emails  LeadEmail[]
 
   @@index([teamId, updatedAt(sort: Desc)])
   @@map("contacts")
@@ -182,6 +212,7 @@ model Lead {
   companyId          String?      @map("company_id")
   contactId          String?      @map("contact_id")
   ownerId            String?      @map("owner_id")
+  aiSummaryVersion   Int          @default(0) @map("ai_summary_version")
   deletedAt          DateTime?    @map("deleted_at")
   createdAt          DateTime     @default(now()) @map("created_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
@@ -191,6 +222,8 @@ model Lead {
   company Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   contact Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner   User?         @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  summary LeadSummaryCache?
+  emails  LeadEmail[]
 
   @@index([teamId, updatedAt(sort: Desc)])
   @@index([teamId, stageId])
@@ -198,6 +231,47 @@ model Lead {
   @@index([teamId, status])
   @@index([teamId, expectedCloseDate])
   @@map("leads")
+}
+
+model LeadSummaryCache {
+  id            String   @id @default(uuid())
+  teamId        String   @map("team_id")
+  leadId        String   @unique @map("lead_id")
+  sourceVersion Int      @map("source_version")
+  summary       String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, leadId, updatedAt(sort: Desc)])
+  @@map("lead_summary_cache")
+}
+
+model LeadEmail {
+  id                String         @id @default(uuid())
+  teamId            String         @map("team_id")
+  leadId            String         @map("lead_id")
+  contactId         String?        @map("contact_id")
+  actorUserId       String         @map("actor_user_id")
+  direction         EmailDirection @default(OUTBOUND)
+  emailTo           String         @map("email_to")
+  subject           String
+  bodyText          String         @map("body_text") @db.Text
+  provider          String
+  providerMessageId String?        @map("provider_message_id")
+  sentAt            DateTime       @map("sent_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  lead     Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contact  Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  actor    User    @relation("LeadEmailSender", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, leadId, sentAt(sort: Desc)])
+  @@index([teamId, contactId, sentAt(sort: Desc)])
+  @@map("lead_emails")
 }
 
 model Task {
@@ -254,18 +328,21 @@ model Activity {
 }
 
 model Attachment {
-  id          String           @id @default(uuid())
-  teamId      String           @map("team_id")
-  parentType  ParentEntityType @map("parent_type")
-  parentId    String           @map("parent_id")
-  storageKey  String           @map("storage_key")
-  mimeType    String           @map("mime_type")
-  size        Int
-  filename    String?
-  createdAt   DateTime         @default(now()) @map("created_at")
+  id               String           @id @default(uuid())
+  teamId           String           @map("team_id")
+  parentType       ParentEntityType @map("parent_type")
+  parentId         String           @map("parent_id")
+  storageKey       String           @map("storage_key")
+  mimeType         String           @map("mime_type")
+  size             Int
+  filename         String?
+  extractedText    String?          @map("extracted_text") @db.Text
+  extractionStatus String?          @map("extraction_status")
+  createdAt        DateTime         @default(now()) @map("created_at")
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([teamId, parentType, parentId])
+  @@index([teamId, extractionStatus])
   @@map("attachments")
 }
