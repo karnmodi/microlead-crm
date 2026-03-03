@@ -65,6 +65,14 @@ export class AttachmentsController {
     return this.attachments.createFromUpload(team.teamId, user.id, meta.parentType, meta.parentId, file);
   }
 
+  @Post(":id/extract")
+  reExtract(
+    @CurrentTeam() team: TeamContext,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.attachments.reExtract(team.teamId, id);
+  }
+
   @Get(":id/download")
   async download(
     @CurrentTeam() team: TeamContext,

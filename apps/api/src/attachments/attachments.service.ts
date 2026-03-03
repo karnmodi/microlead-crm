@@ -6,6 +6,7 @@ import { join, posix } from "path";
 import { randomUUID } from "crypto";
 import { ActivitiesService } from "../activities/activities.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { DocumentExtractorService } from "./document-extractor.service";
 
 @Injectable()
 export class AttachmentsService implements OnModuleInit {
@@ -14,7 +15,20 @@ export class AttachmentsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activities: ActivitiesService,
+    private readonly extractor: DocumentExtractorService,
   ) {}
+
+  private async bumpLeadSummaryVersionForParent(
+    teamId: string,
+    parentType: ParentEntityType,
+    parentId: string,
+  ) {
+    if (parentType !== ParentEntityType.LEAD) return;
+    await this.prisma.lead.updateMany({
+      where: { id: parentId, teamId, deletedAt: null },
+      data: { aiSummaryVersion: { increment: 1 } },
+    });
+  }
 
   async onModuleInit() {
     this.root = process.env.STORAGE_PATH ?? join(process.cwd(), "storage", "uploads");
@@ -68,6 +82,11 @@ export class AttachmentsService implements OnModuleInit {
     await this.activities.append(teamId, userId, parentType, parentId, "attachment.created", {
       attachmentId: row.id,
     });
+    await this.bumpLeadSummaryVersionForParent(teamId, parentType, parentId);
+
+    // Fire-and-forget document extraction — does not block the upload response
+    void this.extractor.extract(row.id, file.buffer, file.mimetype || "application/octet-stream");
+
     return row;
   }
 
@@ -100,6 +119,14 @@ export class AttachmentsService implements OnModuleInit {
     return { stream: createReadStream(path), mimeType: row.mimeType, filename: row.filename };
   }
 
+  async reExtract(teamId: string, id: string) {
+    const row = await this.get(teamId, id);
+    const fs = await import("fs/promises");
+    const buffer = await fs.readFile(this.diskPath(row.storageKey));
+    void this.extractor.extract(row.id, buffer, row.mimeType);
+    return { ok: true, status: "pending" };
+  }
+
   async remove(teamId: string, userId: string, id: string) {
     const row = await this.get(teamId, id);
     const fs = await import("fs/promises");
@@ -112,6 +139,7 @@ export class AttachmentsService implements OnModuleInit {
     await this.activities.append(teamId, userId, row.parentType, row.parentId, "attachment.deleted", {
       attachmentId: id,
     });
+    await this.bumpLeadSummaryVersionForParent(teamId, row.parentType, row.parentId);
     return { ok: true };
   }
 }
