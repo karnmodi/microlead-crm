@@ -45,7 +45,43 @@ export class TeamsService {
         where: { id: userId },
         data: { preferredTeamId: team.id },
       });
+      await tx.teamAiSettings.create({
+        data: { teamId: team.id },
+      });
       return team;
+    });
+  }
+
+  async getAiSettings(teamId: string) {
+    const settings = await this.prisma.teamAiSettings.findUnique({
+      where: { teamId },
+    });
+    if (settings) return settings;
+    return this.prisma.teamAiSettings.create({ data: { teamId } });
+  }
+
+  async upsertAiSettings(
+    teamId: string,
+    data: {
+      businessFocus?: string | null;
+      crmPurpose?: string | null;
+      targetAudience?: string | null;
+      toneGuidelines?: string | null;
+      emailSignature?: string | null;
+      defaultClosing?: string | null;
+      languageStyle?: string | null;
+      responseVerbosity?: number;
+      reasoningDepth?: number;
+      actionHorizonDays?: number;
+    },
+  ) {
+    return this.prisma.teamAiSettings.upsert({
+      where: { teamId },
+      create: {
+        teamId,
+        ...data,
+      },
+      update: data,
     });
   }
 
