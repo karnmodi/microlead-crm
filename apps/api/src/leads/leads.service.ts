@@ -135,28 +135,36 @@ export class LeadsService {
     teamId: string,
     refs: { stageId: string; companyId?: string | null; contactId?: string | null; ownerId?: string | null },
   ) {
-    const stage = await this.prisma.pipelineStage.findFirst({
+    const stagePromise = this.prisma.pipelineStage.findFirst({
       where: { id: refs.stageId, teamId },
     });
+    const companyPromise = refs.companyId
+      ? this.prisma.company.findFirst({
+          where: { id: refs.companyId, teamId, deletedAt: null },
+        })
+      : Promise.resolve(null);
+    const contactPromise = refs.contactId
+      ? this.prisma.contact.findFirst({
+          where: { id: refs.contactId, teamId, deletedAt: null },
+        })
+      : Promise.resolve(null);
+    const ownerPromise = refs.ownerId
+      ? this.prisma.teamMember.findUnique({
+          where: { userId_teamId: { userId: refs.ownerId, teamId } },
+        })
+      : Promise.resolve(null);
+
+    const [stage, company, contact, owner] = await Promise.all([
+      stagePromise,
+      companyPromise,
+      contactPromise,
+      ownerPromise,
+    ]);
+
     if (!stage) throw new NotFoundException("Stage not found");
-    if (refs.companyId) {
-      const c = await this.prisma.company.findFirst({
-        where: { id: refs.companyId, teamId, deletedAt: null },
-      });
-      if (!c) throw new NotFoundException("Company not found");
-    }
-    if (refs.contactId) {
-      const c = await this.prisma.contact.findFirst({
-        where: { id: refs.contactId, teamId, deletedAt: null },
-      });
-      if (!c) throw new NotFoundException("Contact not found");
-    }
-    if (refs.ownerId) {
-      const m = await this.prisma.teamMember.findUnique({
-        where: { userId_teamId: { userId: refs.ownerId, teamId } },
-      });
-      if (!m) throw new NotFoundException("Owner must be a team member");
-    }
+    if (refs.companyId && !company) throw new NotFoundException("Company not found");
+    if (refs.contactId && !contact) throw new NotFoundException("Contact not found");
+    if (refs.ownerId && !owner) throw new NotFoundException("Owner must be a team member");
   }
 
   async create(
@@ -204,6 +212,7 @@ export class LeadsService {
         expectedCloseDate: body.expectedCloseDate ? new Date(body.expectedCloseDate) : undefined,
         closedAt,
         tags: tagsToJson(body.tags),
+        aiSummaryVersion: 1,
       },
       include: leadInclude,
     });
@@ -303,6 +312,7 @@ export class LeadsService {
       ...(closedAt !== undefined ? { closedAt } : {}),
       ...(lostReason !== undefined ? { lostReason } : {}),
       ...(body.tags !== undefined ? { tags: tagsToJson(body.tags) } : {}),
+      aiSummaryVersion: { increment: 1 },
     };
 
     const row = await this.prisma.lead.update({
@@ -311,13 +321,43 @@ export class LeadsService {
       include: leadInclude,
     });
 
+    const leadChanges: Record<string, { from: unknown; to: unknown }> = {};
+    const maybeChange = (key: string, from: unknown, to: unknown) => {
+      if (from !== to) leadChanges[key] = { from, to };
+    };
+    if (body.title !== undefined) maybeChange("title", existing.title, row.title);
+    if (body.stageId !== undefined) maybeChange("stageId", existing.stageId, row.stageId);
+    if (body.priority !== undefined) maybeChange("priority", existing.priority, row.priority);
+    if (body.value !== undefined) maybeChange("value", existing.value?.toString() ?? null, row.value?.toString() ?? null);
+    if (body.companyId !== undefined) maybeChange("companyId", existing.companyId, row.companyId);
+    if (body.contactId !== undefined) maybeChange("contactId", existing.contactId, row.contactId);
+    if (body.ownerId !== undefined) maybeChange("ownerId", existing.ownerId, row.ownerId);
+    if (body.description !== undefined) maybeChange("description", existing.description, row.description);
+    if (body.currency !== undefined) maybeChange("currency", existing.currency, row.currency);
+    if (body.probability !== undefined) maybeChange("probability", existing.probability, row.probability);
+    if (body.source !== undefined) maybeChange("source", existing.source, row.source);
+    if (body.status !== undefined) maybeChange("status", existing.status, row.status);
+    if (body.expectedCloseDate !== undefined) {
+      maybeChange(
+        "expectedCloseDate",
+        existing.expectedCloseDate?.toISOString() ?? null,
+        row.expectedCloseDate?.toISOString() ?? null,
+      );
+    }
+    if (body.lostReason !== undefined) maybeChange("lostReason", existing.lostReason, row.lostReason);
+    if (body.tags !== undefined) maybeChange("tags", existing.tags ?? null, row.tags ?? null);
+    const jsonSafeChanges = JSON.parse(JSON.stringify(leadChanges)) as Prisma.InputJsonValue;
+
     if (body.stageId && body.stageId !== existing.stageId) {
       await this.activities.append(teamId, userId, "LEAD", id, "lead.stage_changed", {
         fromStageId: existing.stageId,
         toStageId: body.stageId,
+        changes: jsonSafeChanges,
       });
     } else {
-      await this.activities.append(teamId, userId, "LEAD", id, "lead.updated", body);
+      await this.activities.append(teamId, userId, "LEAD", id, "lead.updated", {
+        changes: jsonSafeChanges,
+      });
     }
     return row;
   }
