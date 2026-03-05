@@ -11,6 +11,18 @@ export class NotesService {
     private readonly activities: ActivitiesService,
   ) {}
 
+  private async bumpLeadSummaryVersionForParent(
+    teamId: string,
+    parentType: ParentEntityType,
+    parentId: string,
+  ) {
+    if (parentType !== ParentEntityType.LEAD) return;
+    await this.prisma.lead.updateMany({
+      where: { id: parentId, teamId, deletedAt: null },
+      data: { aiSummaryVersion: { increment: 1 } },
+    });
+  }
+
   private async assertParent(teamId: string, type: ParentEntityType, id: string) {
     if (type === "LEAD") {
       const r = await this.prisma.lead.findFirst({ where: { id, teamId, deletedAt: null } });
@@ -71,9 +83,12 @@ export class NotesService {
         body: body.body,
       },
     });
-    await this.activities.append(teamId, userId, body.parentType, body.parentId, "note.created", {
-      noteId: row.id,
-    });
+    await Promise.all([
+      this.activities.append(teamId, userId, body.parentType, body.parentId, "note.created", {
+        noteId: row.id,
+      }),
+      this.bumpLeadSummaryVersionForParent(teamId, body.parentType, body.parentId),
+    ]);
     return row;
   }
 
@@ -83,14 +98,25 @@ export class NotesService {
       where: { id },
       data: { body: body.body },
     });
-    await this.activities.append(
-      teamId,
-      userId,
-      existing.parentType,
-      existing.parentId,
-      "note.updated",
-      { noteId: id },
-    );
+    await Promise.all([
+      this.activities.append(
+        teamId,
+        userId,
+        existing.parentType,
+        existing.parentId,
+        "note.updated",
+        {
+          noteId: id,
+          changes: {
+            body: {
+              from: existing.body.slice(0, 180),
+              to: row.body.slice(0, 180),
+            },
+          },
+        },
+      ),
+      this.bumpLeadSummaryVersionForParent(teamId, existing.parentType, existing.parentId),
+    ]);
     return row;
   }
 
@@ -100,14 +126,17 @@ export class NotesService {
       where: { id },
       data: { deletedAt: new Date() },
     });
-    await this.activities.append(
-      teamId,
-      userId,
-      existing.parentType,
-      existing.parentId,
-      "note.deleted",
-      { noteId: id },
-    );
+    await Promise.all([
+      this.activities.append(
+        teamId,
+        userId,
+        existing.parentType,
+        existing.parentId,
+        "note.deleted",
+        { noteId: id },
+      ),
+      this.bumpLeadSummaryVersionForParent(teamId, existing.parentType, existing.parentId),
+    ]);
     return { ok: true };
   }
 }

@@ -11,6 +11,18 @@ export class TasksService {
     private readonly activities: ActivitiesService,
   ) {}
 
+  private async bumpLeadSummaryVersionForParent(
+    teamId: string,
+    parentType: ParentEntityType,
+    parentId: string,
+  ) {
+    if (parentType !== ParentEntityType.LEAD) return;
+    await this.prisma.lead.updateMany({
+      where: { id: parentId, teamId, deletedAt: null },
+      data: { aiSummaryVersion: { increment: 1 } },
+    });
+  }
+
   private async assertParent(teamId: string, type: ParentEntityType, id: string) {
     if (type === "LEAD") {
       const r = await this.prisma.lead.findFirst({ where: { id, teamId, deletedAt: null } });
@@ -89,10 +101,13 @@ export class TasksService {
         dueAt: body.dueAt ? new Date(body.dueAt) : undefined,
       },
     });
-    await this.activities.append(teamId, userId, body.parentType, body.parentId, "task.created", {
-      taskId: row.id,
-      title: row.title,
-    });
+    await Promise.all([
+      this.activities.append(teamId, userId, body.parentType, body.parentId, "task.created", {
+        taskId: row.id,
+        title: row.title,
+      }),
+      this.bumpLeadSummaryVersionForParent(teamId, body.parentType, body.parentId),
+    ]);
     return row;
   }
 
@@ -102,7 +117,7 @@ export class TasksService {
     id: string,
     body: Partial<{ title: string; done: boolean; assigneeId: string | null; dueAt: string | null }>,
   ) {
-    await this.get(teamId, id);
+    const before = await this.get(teamId, id);
     const row = await this.prisma.task.update({
       where: { id },
       data: {
@@ -110,9 +125,27 @@ export class TasksService {
         dueAt: body.dueAt === undefined ? undefined : body.dueAt ? new Date(body.dueAt) : null,
       },
     });
-    await this.activities.append(teamId, userId, row.parentType, row.parentId, "task.updated", {
-      taskId: id,
-    });
+    await Promise.all([
+      this.activities.append(teamId, userId, row.parentType, row.parentId, "task.updated", {
+        taskId: id,
+        changes: {
+          ...(body.title !== undefined ? { title: { from: before.title, to: row.title } } : {}),
+          ...(body.done !== undefined ? { done: { from: before.done, to: row.done } } : {}),
+          ...(body.assigneeId !== undefined
+            ? { assigneeId: { from: before.assigneeId, to: row.assigneeId } }
+            : {}),
+          ...(body.dueAt !== undefined
+            ? {
+                dueAt: {
+                  from: before.dueAt?.toISOString() ?? null,
+                  to: row.dueAt?.toISOString() ?? null,
+                },
+              }
+            : {}),
+        },
+      }),
+      this.bumpLeadSummaryVersionForParent(teamId, row.parentType, row.parentId),
+    ]);
     return row;
   }
 
@@ -122,9 +155,12 @@ export class TasksService {
       where: { id },
       data: { deletedAt: new Date() },
     });
-    await this.activities.append(teamId, userId, row.parentType, row.parentId, "task.deleted", {
-      taskId: id,
-    });
+    await Promise.all([
+      this.activities.append(teamId, userId, row.parentType, row.parentId, "task.deleted", {
+        taskId: id,
+      }),
+      this.bumpLeadSummaryVersionForParent(teamId, row.parentType, row.parentId),
+    ]);
     return { ok: true };
   }
 }
