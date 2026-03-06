@@ -39,20 +39,28 @@ type NotesRes = {
   meta: { total: number };
 };
 type TasksRes = {
-  data: Array<{ id: string; title: string; done: boolean; dueAt: string | null }>;
+  data: Array<{
+    id: string;
+    title: string;
+    done: boolean;
+    dueAt: string | null;
+    updatedAt: string;
+  }>;
   meta: { total: number };
 };
-type AttachmentRow = {
-  id: string;
-  filename: string | null;
-  size: number;
-  mimeType: string;
-  createdAt: string;
-};
 
+type AiNextActionsRes = {
+  actions: string;
+  actionsMarkdown?: string;
+  actionItems?: string[];
+  actionItemsDetailed?: Array<{ title: string; dueAt?: string | null }>;
+  reasoningSummary?: string;
+  taskCandidates?: Array<{ title: string; dueAt?: string | null }> | string[];
+};
+type AiSummaryRes = { summary: string; summaryMarkdown?: string; cached?: boolean };
+type AiDraftRes = { draft: string; draftMarkdown?: string; subject?: string; body?: string };
 const priorities = ["LOW", "MEDIUM", "HIGH"] as const;
 const statuses = ["OPEN", "WON", "LOST"] as const;
-const aiTabs = ["summary", "actions", "draft"] as const;
 
 function tagsToString(tags: unknown): string {
   if (tags == null) return "";
@@ -63,6 +71,52 @@ function tagsToString(tags: unknown): string {
 function compactDate(value: string | null) {
   if (!value) return null;
   return value.slice(0, 10);
+}
+
+function compactDateTime(value: string | null) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildLinkedinComposeUrl(message: string): string {
+  return `https://www.linkedin.com/messaging/compose/?body=${encodeURIComponent(message)}`;
+}
+
+type AiTaskCandidate = { title: string; dueAt: string | null };
+
+function normalizeTaskCandidates(
+  candidates: Array<{ title: string; dueAt?: string | null }> | string[],
+): AiTaskCandidate[] {
+  const out: AiTaskCandidate[] = [];
+  for (const raw of candidates) {
+    if (typeof raw === "string") {
+      const text = raw.trim().replace(/^\d+\.\s*/, "");
+      if (!text) continue;
+      out.push({ title: text, dueAt: null });
+      continue;
+    }
+    const title = raw?.title?.trim().replace(/^\d+\.\s*/, "");
+    if (!title) continue;
+    const dueAt =
+      typeof raw.dueAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueAt.trim())
+        ? raw.dueAt.trim()
+        : null;
+    out.push({ title, dueAt });
+  }
+  const deduped = new Map<string, AiTaskCandidate>();
+  for (const item of out) {
+    const key = item.title.toLowerCase();
+    if (!deduped.has(key)) deduped.set(key, item);
+  }
+  return Array.from(deduped.values());
 }
 
 function metaPill(label: string, value: string | null | undefined) {
@@ -105,15 +159,6 @@ export default function LeadDetailPage() {
       api<TasksRes>(`/tasks?parentType=LEAD&parentId=${encodeURIComponent(id)}&limit=50`),
     enabled: !!id,
   });
-  const attachments = useQuery({
-    queryKey: ["lead", id, "attachments"],
-    queryFn: () =>
-      api<AttachmentRow[]>(
-        `/attachments?parentType=LEAD&parentId=${encodeURIComponent(id)}`,
-      ),
-    enabled: !!id,
-  });
-
   const stages = useQuery({
     queryKey: ["pipeline-stages"],
     queryFn: () => api<Array<{ id: string; name: string }>>("/pipeline-stages"),
@@ -139,8 +184,10 @@ export default function LeadDetailPage() {
         method: "POST",
         body: JSON.stringify({ parentType: "LEAD", parentId: id, text: noteText }),
       }),
-    onSuccess: () => {
+    onMutate: () => {
       setNoteText("");
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["notes", "LEAD", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
     },
@@ -210,6 +257,37 @@ export default function LeadDetailPage() {
         }),
       });
     },
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ["lead", id] });
+      const prev = qc.getQueryData<LeadDetail>(["lead", id]);
+      qc.setQueryData<LeadDetail>(["lead", id], (old) =>
+        old
+          ? {
+              ...old,
+              title: editTitle,
+              stageId: editStageId,
+              priority: editPriority,
+              value: editValue.trim() === "" ? null : Number(editValue),
+              companyId: editCompanyId || null,
+              contactId: editContactId || null,
+              description: editDescription.trim() || null,
+              currency: editCurrency.trim() || "USD",
+              probability:
+                editProbability.trim() === ""
+                  ? null
+                  : Math.min(100, Math.max(0, Number(editProbability))),
+              source: editSource.trim() || null,
+              status: editStatus,
+              expectedCloseDate: editExpectedClose ? `${editExpectedClose}T12:00:00.000Z` : null,
+              lostReason: editStatus === "LOST" ? editLostReason.trim() || null : null,
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["lead", id], ctx.prev);
+    },
     onSuccess: () => {
       setEditOpen(false);
       void qc.invalidateQueries({ queryKey: ["lead", id] });
@@ -230,6 +308,24 @@ export default function LeadDetailPage() {
   const toggleTask = useMutation({
     mutationFn: ({ taskId, done }: { taskId: string; done: boolean }) =>
       api(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+    onMutate: async ({ taskId, done }) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "LEAD", id] });
+      const prev = qc.getQueryData<TasksRes>(["tasks", "LEAD", id]);
+      qc.setQueryData<TasksRes>(["tasks", "LEAD", id], (old) =>
+        old
+          ? {
+              ...old,
+              data: old.data.map((t) =>
+                t.id === taskId ? { ...t, done, updatedAt: new Date().toISOString() } : t,
+              ),
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "LEAD", id], ctx.prev);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks", "LEAD", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
@@ -237,11 +333,42 @@ export default function LeadDetailPage() {
   });
 
   const addTask = useMutation({
-    mutationFn: (title: string) =>
+    mutationFn: ({ title, dueAt }: { title: string; dueAt: string }) =>
       api("/tasks", {
         method: "POST",
-        body: JSON.stringify({ parentType: "LEAD", parentId: id, title }),
+        body: JSON.stringify({
+          parentType: "LEAD",
+          parentId: id,
+          title,
+          dueAt: dueAt ? `${dueAt}T12:00:00.000Z` : null,
+        }),
       }),
+    onMutate: async ({ title, dueAt }) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "LEAD", id] });
+      const prev = qc.getQueryData<TasksRes>(["tasks", "LEAD", id]);
+      const tempId = `temp-${Date.now()}`;
+      qc.setQueryData<TasksRes>(["tasks", "LEAD", id], (old) =>
+        old
+          ? {
+              ...old,
+              data: [
+                {
+                  id: tempId,
+                  title,
+                  done: false,
+                  dueAt: dueAt ? `${dueAt}T12:00:00.000Z` : null,
+                  updatedAt: new Date().toISOString(),
+                },
+                ...old.data,
+              ],
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "LEAD", id], ctx.prev);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks", "LEAD", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
@@ -249,40 +376,64 @@ export default function LeadDetailPage() {
   });
 
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDueAt, setNewTaskDueAt] = useState("");
+  const [taskSubmitAttempted, setTaskSubmitAttempted] = useState(false);
 
   const [summary, setSummary] = useState<string | null>(null);
-  const [actions, setActions] = useState<string | null>(null);
-  const [draft, setDraft] = useState<string | null>(null);
+  const [actionsReasoning, setActionsReasoning] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [linkedinMessage, setLinkedinMessage] = useState("");
+  const [actionItems, setActionItems] = useState<AiTaskCandidate[]>([]);
+  const [selectedActions, setSelectedActions] = useState<string[]>([]);
   const [draftChannel, setDraftChannel] = useState<"email" | "linkedin">("email");
-  const [aiTab, setAiTab] = useState<(typeof aiTabs)[number]>("summary");
-  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState<{
+    summary: boolean;
+    next: boolean;
+    outreach: boolean;
+  }>({
+    summary: false,
+    next: false,
+    outreach: false,
+  });
   const [aiError, setAiError] = useState<string | null>(null);
+  const [actionCreateNotice, setActionCreateNotice] = useState<string | null>(null);
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
-  const lastAutoSummaryKey = useRef<string>("");
+  const [showAiInsight, setShowAiInsight] = useState(false);
+  const autoSummaryRequestedForId = useRef<string | null>(null);
 
   const runAi = useCallback(async (kind: "summary" | "next" | "outreach") => {
     setAiError(null);
-    setAiLoading(kind);
+    setAiLoading((prev) => ({ ...prev, [kind]: true }));
     try {
       if (kind === "summary") {
-        const r = await api<{ summary: string }>("/ai/lead-summary", {
+        const r = await api<AiSummaryRes>("/ai/lead-summary", {
           method: "POST",
           body: JSON.stringify({ leadId: id }),
         });
-        setSummary(r.summary);
+        setSummary(r.summaryMarkdown ?? r.summary);
       } else if (kind === "next") {
-        const r = await api<{ actions: string }>("/ai/next-actions", {
+        const r = await api<AiNextActionsRes>("/ai/next-actions", {
           method: "POST",
           body: JSON.stringify({ leadId: id }),
         });
-        setActions(r.actions);
+        const sourceCandidates = r.actionItemsDetailed ?? r.taskCandidates ?? r.actionItems ?? [];
+        const parsedItems = normalizeTaskCandidates(sourceCandidates);
+        setActionsReasoning(r.reasoningSummary ?? null);
+        setActionItems(parsedItems);
+        setSelectedActions(parsedItems.map((item) => item.title));
       } else {
-        const r = await api<{ draft: string }>("/ai/outreach-draft", {
+        const r = await api<AiDraftRes>("/ai/outreach-draft", {
           method: "POST",
           body: JSON.stringify({ leadId: id, channel: draftChannel }),
         });
-        setDraft(r.draft);
+        if (draftChannel === "email") {
+          setEmailSubject((r.subject ?? "").trim());
+          setEmailBody((r.body ?? r.draftMarkdown ?? r.draft).trim());
+        } else {
+          setLinkedinMessage((r.body ?? r.draftMarkdown ?? r.draft).trim());
+        }
       }
     } catch (e) {
       const err = e as Error & { code?: string };
@@ -292,62 +443,83 @@ export default function LeadDetailPage() {
           : err.message,
       );
     } finally {
-      setAiLoading(null);
+      setAiLoading((prev) => ({ ...prev, [kind]: false }));
     }
   }, [id, draftChannel]);
 
-  const summaryRefreshKey = useMemo(
-    () =>
-      JSON.stringify({
-        lead: lead.data
-          ? {
-              title: lead.data.title,
-              description: lead.data.description,
-              value: lead.data.value,
-              currency: lead.data.currency,
-              probability: lead.data.probability,
-              source: lead.data.source,
-              status: lead.data.status,
-              priority: lead.data.priority,
-              stageId: lead.data.stageId,
-              expectedCloseDate: lead.data.expectedCloseDate,
-              lostReason: lead.data.lostReason,
-              tags: tagsToString(lead.data.tags),
-            }
-          : null,
-        tasks: (tasks.data?.data ?? []).map((t) => [t.id, t.title, t.done, t.dueAt]),
-        notes: (notes.data?.data ?? []).map((n) => [n.id, n.body, n.createdAt]),
-        activities: (activities.data?.data ?? []).map((a) => [a.id, a.action, a.createdAt]),
-        files: (attachments.data ?? []).map((a) => [a.id, a.filename, a.size, a.createdAt]),
+  const createTasksFromActions = useMutation({
+    mutationFn: () =>
+      api<{
+        createdCount: number;
+        skippedCount: number;
+      }>("/ai/actions-to-tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          leadId: id,
+          actionItems: selectedActions,
+          actionItemsDetailed: actionItems.filter((item) =>
+            selectedActions.includes(item.title),
+          ),
+        }),
       }),
-    [lead.data, tasks.data?.data, notes.data?.data, activities.data?.data, attachments.data],
-  );
+    onMutate: () => {
+      setActionCreateNotice("Creating selected tasks in background...");
+    },
+    onSuccess: (r) => {
+      setActionCreateNotice(`Created ${r.createdCount} task(s), skipped ${r.skippedCount}.`);
+      setActionItems([]);
+      setSelectedActions([]);
+      setActionsReasoning(null);
+      void qc.invalidateQueries({ queryKey: ["tasks", "LEAD", id] });
+      void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
+    },
+  });
+
+  const sendDraftEmail = useMutation({
+    mutationFn: () =>
+      api("/ai/send-draft-email", {
+        method: "POST",
+        body: JSON.stringify({
+          leadId: id,
+          subject: emailSubject,
+          body: emailBody,
+        }),
+      }),
+    onSuccess: () => {
+      void runAi("summary");
+      void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
+    },
+  });
+
+  const logLinkedinIntent = useMutation({
+    mutationFn: () =>
+      api("/ai/log-linkedin-intent", {
+        method: "POST",
+        body: JSON.stringify({ leadId: id, message: linkedinMessage }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["activities", "LEAD", id] });
+    },
+  });
 
   useEffect(() => {
-    if (!id || lead.isLoading || tasks.isLoading || notes.isLoading || activities.isLoading || attachments.isLoading) {
+    if (!id || lead.isLoading || lead.error) {
       return;
     }
-    if (lead.error || tasks.error || notes.error || activities.error || attachments.error) {
+    if (autoSummaryRequestedForId.current === id) {
       return;
     }
-    if (summaryRefreshKey === lastAutoSummaryKey.current) return;
-    lastAutoSummaryKey.current = summaryRefreshKey;
+    autoSummaryRequestedForId.current = id;
     void runAi("summary");
-  }, [
-    id,
-    lead.isLoading,
-    tasks.isLoading,
-    notes.isLoading,
-    activities.isLoading,
-    attachments.isLoading,
-    lead.error,
-    tasks.error,
-    notes.error,
-    activities.error,
-    attachments.error,
-    summaryRefreshKey,
-    runAi,
-  ]);
+  }, [id, lead.isLoading, lead.error, runAi]);
+
+  const sortedLeadTasks = useMemo(() => {
+    const list = tasks.data?.data ?? [];
+    return [...list].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [tasks.data?.data]);
 
   if (lead.isLoading) {
     return <DetailPageSkeleton />;
@@ -366,6 +538,7 @@ export default function LeadDetailPage() {
   const visibleActivity = showAllActivity
     ? activities.data?.data ?? []
     : (activities.data?.data ?? []).slice(0, 8);
+  const trimmedNewTaskTitle = newTaskTitle.trim();
 
   return (
     <div className="space-y-5">
@@ -420,6 +593,46 @@ export default function LeadDetailPage() {
           {metaPill("Owner", L.owner ? (L.owner.name ?? L.owner.email) : null)}
         </div>
       </header>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAiInsight((prev) => !prev)}
+            className="group inline-flex items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-expanded={showAiInsight}
+            aria-label={showAiInsight ? "Collapse AI powered lead insight" : "Expand AI powered lead insight"}
+          >
+            <AiSectionTitle title="AI Powered Lead Insight" loading={aiLoading.summary} />
+            <span
+              className={`text-zinc-500 transition-transform duration-200 dark:text-zinc-400 ${
+                showAiInsight ? "rotate-180" : "rotate-0"
+              }`}
+              aria-hidden
+            >
+              ▼
+            </span>
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void runAi("summary")}
+              disabled={aiLoading.summary}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+            >
+              {aiLoading.summary ? "Refreshing..." : "Refresh summary"}
+            </button>
+          </div>
+        </div>
+        {aiError && showAiInsight && (
+          <p className="text-sm text-red-600 dark:text-red-400">{aiError}</p>
+        )}
+        {showAiInsight && (
+          <AiResponsePanel variant="summary" label="Lead insight" loading={aiLoading.summary} markdown={summary ?? ""}>
+            {summary ?? ""}
+          </AiResponsePanel>
+        )}
+      </section>
 
       {editOpen && (
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -605,49 +818,136 @@ export default function LeadDetailPage() {
               <h2 className="text-base font-semibold">Tasks</h2>
               <span className="text-xs text-zinc-500">{tasks.data?.meta.total ?? 0} total</span>
             </div>
+            <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900 dark:bg-sky-950/30">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-sky-900 dark:text-sky-200">AI Next Actions</p>
+                <button
+                  type="button"
+                  onClick={() => void runAi("next")}
+                  disabled={aiLoading.next}
+                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                >
+                  {aiLoading.next ? "Generating..." : "Generate actions"}
+                </button>
+              </div>
+              {!!actionsReasoning && (
+                <div className="mt-2">
+                  <AiResponsePanel
+                    variant="actions"
+                    label="Reasoning"
+                    markdown={actionsReasoning}
+                  >
+                    {actionsReasoning}
+                  </AiResponsePanel>
+                </div>
+              )}
+              {!!actionItems.length && (
+                <div className="mt-2 space-y-2">
+                  {actionItems.map((item) => (
+                    <label key={`${item.title}:${item.dueAt ?? "none"}`} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedActions.includes(item.title)}
+                        onChange={(e) =>
+                          setSelectedActions((prev) =>
+                            e.target.checked
+                              ? [...prev, item.title]
+                              : prev.filter((x) => x !== item.title),
+                          )
+                        }
+                        className="mt-0.5 h-4 w-4 rounded border-zinc-300"
+                      />
+                      <span>
+                        {item.title}
+                        {item.dueAt ? (
+                          <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            (Due {item.dueAt})
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={!selectedActions.length}
+                    onClick={() => createTasksFromActions.mutate()}
+                    className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                  >
+                    Create selected tasks
+                  </button>
+                  {actionCreateNotice && (
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300">{actionCreateNotice}</p>
+                  )}
+                </div>
+              )}
+            </div>
             <form
-              className="mt-3 flex flex-col gap-2 sm:flex-row"
+              className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_auto]"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!newTaskTitle.trim()) return;
-                addTask.mutate(newTaskTitle.trim());
+                setTaskSubmitAttempted(true);
+                if (!trimmedNewTaskTitle) return;
+                addTask.mutate({ title: trimmedNewTaskTitle, dueAt: newTaskDueAt });
                 setNewTaskTitle("");
+                setNewTaskDueAt("");
+                setTaskSubmitAttempted(false);
               }}
             >
               <input
                 placeholder="Add a next step…"
                 value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onChange={(e) => {
+                  setNewTaskTitle(e.target.value);
+                  if (taskSubmitAttempted) setTaskSubmitAttempted(false);
+                }}
                 className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
+              <label className="w-full text-[11px] text-zinc-500 dark:text-zinc-400">
+                Due date (optional)
+                <input
+                  type="date"
+                  value={newTaskDueAt}
+                  onChange={(e) => setNewTaskDueAt(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+              </label>
               <button
                 type="submit"
-                disabled={addTask.isPending}
+                disabled={addTask.isPending || !trimmedNewTaskTitle}
                 className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
               >
                 Add
               </button>
             </form>
+            {taskSubmitAttempted && !trimmedNewTaskTitle && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                Task title is required.
+              </p>
+            )}
             <ul className="mt-3 space-y-2">
-              {tasks.data?.data.map((t) => (
+              {sortedLeadTasks.map((t) => (
                 <li
                   key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+                  className="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
                 >
-                  <label className="flex min-w-0 flex-1 items-center gap-2">
+                  <label className="flex min-w-0 flex-1 items-start gap-2">
                     <input
                       type="checkbox"
                       checked={t.done}
                       onChange={(e) => toggleTask.mutate({ taskId: t.id, done: e.target.checked })}
-                      className="h-4 w-4 rounded border-zinc-300"
+                      className="mt-0.5 h-4 w-4 rounded border-zinc-300"
                     />
-                    <span className={`truncate ${t.done ? "text-zinc-400 line-through" : ""}`}>{t.title}</span>
+                    <span className={`whitespace-normal break-words ${t.done ? "text-zinc-400 line-through" : ""}`}>{t.title}</span>
                   </label>
-                  {t.dueAt && (
-                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      {compactDate(t.dueAt)}
+                  {t.done ? (
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      Completed on {compactDateTime(t.updatedAt)}
                     </span>
-                  )}
+                  ) : t.dueAt ? (
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      Expected by {compactDate(t.dueAt)}
+                    </span>
+                  ) : null}
                 </li>
               ))}
               {tasks.data?.data.length === 0 && (
@@ -734,66 +1034,79 @@ export default function LeadDetailPage() {
             </div>
           </section>
 
-          <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" aria-busy={!!aiLoading}>
-            <AiSectionTitle title="AI assistant" subtitle="Insights and drafts." />
-            {aiError && <p className="text-sm text-red-600 dark:text-red-400">{aiError}</p>}
-            <div className="flex flex-wrap gap-2">
-              {aiTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setAiTab(tab)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                    aiTab === tab
-                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                      : "border border-zinc-300 text-zinc-700 dark:border-zinc-600 dark:text-zinc-200"
-                  }`}
-                >
-                  {tab === "summary" ? "Summary" : tab === "actions" ? "Actions" : "Draft"}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {aiTab === "draft" && (
+          <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">Outreach composer</h2>
+              <div className="flex items-center gap-2">
                 <select
                   value={draftChannel}
                   onChange={(e) => setDraftChannel(e.target.value as "email" | "linkedin")}
-                  disabled={!!aiLoading}
+                  disabled={aiLoading.outreach}
                   className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
                 >
                   <option value="email">Email</option>
                   <option value="linkedin">LinkedIn</option>
                 </select>
-              )}
-              {aiTab === "summary" ? (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Auto-refreshes whenever lead data, tasks, notes, activity, or files change.
-                </p>
-              ) : (
                 <button
                   type="button"
-                  onClick={() => void runAi(aiTab === "actions" ? "next" : "outreach")}
-                  disabled={!!aiLoading}
+                  onClick={() => void runAi("outreach")}
+                  disabled={aiLoading.outreach}
                   className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
                 >
-                  {aiLoading ? "Generating…" : `Generate ${aiTab}`}
+                  {aiLoading.outreach ? "Generating..." : "Generate draft"}
                 </button>
-              )}
+              </div>
             </div>
-            {aiTab === "summary" && (summary || aiLoading === "summary") && (
-              <AiResponsePanel variant="summary" label="Summary" loading={aiLoading === "summary"}>
-                {summary ?? ""}
-              </AiResponsePanel>
-            )}
-            {aiTab === "actions" && (
-              <AiResponsePanel variant="actions" label="Suggested actions" loading={aiLoading === "next"}>
-                {actions ?? ""}
-              </AiResponsePanel>
-            )}
-            {aiTab === "draft" && (
-              <AiResponsePanel variant="draft" label="Outreach draft" loading={aiLoading === "outreach"}>
-                {draft ?? ""}
-              </AiResponsePanel>
+            {draftChannel === "email" ? (
+              <div className="space-y-2">
+                <input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="Subject"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+                <textarea
+                  rows={7}
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  placeholder="Write your email..."
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+                {!L.contact?.email && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Add a contact email on this lead to send emails.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={!emailSubject.trim() || !emailBody.trim() || !L.contact?.email || sendDraftEmail.isPending}
+                  onClick={() => sendDraftEmail.mutate()}
+                  className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                >
+                  {sendDraftEmail.isPending ? "Sending..." : "Send Email"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <textarea
+                  rows={7}
+                  value={linkedinMessage}
+                  onChange={(e) => setLinkedinMessage(e.target.value)}
+                  placeholder="Write your LinkedIn message..."
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+                <button
+                  type="button"
+                  disabled={!linkedinMessage.trim() || logLinkedinIntent.isPending}
+                  onClick={() => {
+                    logLinkedinIntent.mutate();
+                    window.open(buildLinkedinComposeUrl(linkedinMessage), "_blank", "noopener,noreferrer");
+                  }}
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                >
+                  {logLinkedinIntent.isPending ? "Opening..." : "Open in LinkedIn"}
+                </button>
+              </div>
             )}
           </section>
 
