@@ -18,7 +18,14 @@ type TaskRow = {
 };
 
 type ListRes = { data: TaskRow[]; meta: { total: number } };
-type LeadOptionRes = { data: Array<{ id: string; title?: string; name?: string }> };
+type LeadOptionRes = {
+  data: Array<{
+    id: string;
+    title?: string;
+    name?: string;
+    company?: { id: string; name?: string | null } | null;
+  }>;
+};
 type ContactOptionRes = {
   data: Array<{ id: string; firstName?: string; lastName?: string; name?: string }>;
 };
@@ -72,6 +79,19 @@ export default function TasksPage() {
   const toggle = useMutation({
     mutationFn: ({ id, done }: { id: string; done: boolean }) =>
       api(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+    onMutate: async ({ id, done }) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "all"] });
+      const prev = qc.getQueryData<ListRes>(["tasks", "all"]);
+      qc.setQueryData<ListRes>(["tasks", "all"], (old) =>
+        old
+          ? { ...old, data: old.data.map((t) => (t.id === id ? { ...t, done } : t)) }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "all"], ctx.prev);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -81,7 +101,10 @@ export default function TasksPage() {
   const [parentId, setParentId] = useState("");
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [taskSubmitAttempted, setTaskSubmitAttempted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<(typeof filterTypes)[number]>("OPEN");
+  const trimmedTitle = title.trim();
+  const trimmedParentId = parentId.trim();
 
   const parentOptions = useMemo(() => {
     if (parentType === "LEAD") {
@@ -101,6 +124,18 @@ export default function TasksPage() {
       label: company.name ?? company.id,
     }));
   }, [parentType, leads.data?.data, contacts.data?.data, companies.data?.data]);
+
+  const leadMetaById = useMemo(() => {
+    return new Map(
+      (leads.data?.data ?? []).map((lead) => [
+        lead.id,
+        {
+          title: lead.title ?? lead.name ?? lead.id,
+          companyName: lead.company?.name ?? null,
+        },
+      ]),
+    );
+  }, [leads.data?.data]);
 
   useEffect(() => {
     setParentId(parentOptions[0]?.id ?? "");
@@ -141,16 +176,46 @@ export default function TasksPage() {
   }, [data?.data]);
 
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: ({ title, parentId, dueAt }: { title: string; parentId: string; dueAt: string }) =>
       api("/tasks", {
         method: "POST",
         body: JSON.stringify({
           parentType,
-          parentId: parentId.trim(),
-          title: title.trim(),
+          parentId,
+          title,
           dueAt: dueAt ? `${dueAt}T12:00:00.000Z` : null,
         }),
       }),
+    onMutate: async ({ title, parentId, dueAt }) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "all"] });
+      const prev = qc.getQueryData<ListRes>(["tasks", "all"]);
+      const tempId = `temp-${Date.now()}`;
+      qc.setQueryData<ListRes>(["tasks", "all"], (old) =>
+        old
+          ? {
+              ...old,
+              data: [
+                {
+                  id: tempId,
+                  title,
+                  done: false,
+                  parentType,
+                  parentId,
+                  dueAt: dueAt ? `${dueAt}T12:00:00.000Z` : null,
+                },
+                ...old.data,
+              ],
+            }
+          : old,
+      );
+      setTitle("");
+      setDueAt("");
+      setTaskSubmitAttempted(false);
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "all"], ctx.prev);
+    },
     onSuccess: () => {
       setTitle("");
       setParentId("");
@@ -197,8 +262,9 @@ export default function TasksPage() {
               className="mt-3 grid gap-2 lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1.5fr)_160px_auto]"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!title.trim() || !parentId.trim()) return;
-                create.mutate();
+                setTaskSubmitAttempted(true);
+                if (!trimmedTitle || !trimmedParentId) return;
+                create.mutate({ title: trimmedTitle, parentId: trimmedParentId, dueAt });
               }}
             >
               <select
@@ -230,20 +296,34 @@ export default function TasksPage() {
               <input
                 required
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (taskSubmitAttempted) setTaskSubmitAttempted(false);
+                }}
                 placeholder="Task title"
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
               />
-              <input
-                type="date"
-                value={dueAt}
-                onChange={(e) => setDueAt(e.target.value)}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-              <Button type="submit" variant="primary" size="md" disabled={create.isPending}>
+              <label className="w-full text-[11px] text-zinc-500 dark:text-zinc-400">
+                Due date (optional)
+                <input
+                  type="date"
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
+                />
+              </label>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={create.isPending || !trimmedTitle || !trimmedParentId}
+              >
                 {create.isPending ? "Adding…" : "Add"}
               </Button>
             </form>
+            {taskSubmitAttempted && !trimmedTitle && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">Task title is required.</p>
+            )}
             {create.isError && (
               <p className="mt-2 text-sm text-red-600">
                 {create.error instanceof Error ? create.error.message : "Failed"}
@@ -253,14 +333,14 @@ export default function TasksPage() {
 
           <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             {filteredTasks.map((t) => (
-              <li key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+              <li key={t.id} className="flex flex-wrap items-start gap-3 px-4 py-2.5">
                 <input
                   type="checkbox"
                   checked={t.done}
                   onChange={(e) => toggle.mutate({ id: t.id, done: e.target.checked })}
                   className="h-4 w-4 rounded border-zinc-300"
                 />
-                <span className={`min-w-0 flex-1 truncate text-sm ${t.done ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-100"}`}>
+                <span className={`min-w-0 flex-1 whitespace-normal break-words text-sm ${t.done ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-100"}`}>
                   {t.title}
                 </span>
                 {t.dueAt && (
@@ -268,8 +348,22 @@ export default function TasksPage() {
                     {toDateKey(t.dueAt)}
                   </span>
                 )}
-                <Link href={parentHref(t)} className="text-xs text-blue-600 hover:underline dark:text-blue-400">
-                  {t.parentType}
+                <Link
+                  href={parentHref(t)}
+                  className="min-w-0 text-right text-xs text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {t.parentType === "LEAD" ? (
+                    <span className="block leading-tight">
+                      <span className="block truncate font-medium">
+                        {leadMetaById.get(t.parentId)?.title ?? "Lead"}
+                      </span>
+                      <span className="block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                        {leadMetaById.get(t.parentId)?.companyName ?? "No company"}
+                      </span>
+                    </span>
+                  ) : (
+                    t.parentType
+                  )}
                 </Link>
               </li>
             ))}
