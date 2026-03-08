@@ -10,6 +10,32 @@ type MemberRow = {
   user: { id: string; email: string; name: string | null };
 };
 
+type TeamAiSettings = {
+  businessFocus: string | null;
+  crmPurpose: string | null;
+  targetAudience: string | null;
+  toneGuidelines: string | null;
+  emailSignature: string | null;
+  defaultClosing: string | null;
+  languageStyle: string | null;
+  responseVerbosity: number;
+  reasoningDepth: number;
+  actionHorizonDays: number;
+};
+
+const AI_SETTINGS_DEFAULTS = {
+  businessFocus: "B2B healthcare outreach and compliance-first sales execution",
+  crmPurpose: "Prioritize next best actions, improve conversion, and reduce follow-up delays",
+  targetAudience: "Operations leaders, legal/compliance stakeholders, and champions",
+  toneGuidelines: "Professional, concise, outcome-focused, and credibility-first",
+  emailSignature: "Best regards,\nGrowth Team",
+  defaultClosing: "Best regards,",
+  languageStyle: "Clear business English with short action-oriented sentences",
+  responseVerbosity: 2,
+  reasoningDepth: 3,
+  actionHorizonDays: 7,
+} as const;
+
 export default function WorkspaceMembersPage() {
   const qc = useQueryClient();
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -20,6 +46,17 @@ export default function WorkspaceMembersPage() {
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [formErr, setFormErr] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [businessFocus, setBusinessFocus] = useState(AI_SETTINGS_DEFAULTS.businessFocus);
+  const [crmPurpose, setCrmPurpose] = useState(AI_SETTINGS_DEFAULTS.crmPurpose);
+  const [targetAudience, setTargetAudience] = useState(AI_SETTINGS_DEFAULTS.targetAudience);
+  const [toneGuidelines, setToneGuidelines] = useState(AI_SETTINGS_DEFAULTS.toneGuidelines);
+  const [emailSignature, setEmailSignature] = useState(AI_SETTINGS_DEFAULTS.emailSignature);
+  const [defaultClosing, setDefaultClosing] = useState(AI_SETTINGS_DEFAULTS.defaultClosing);
+  const [languageStyle, setLanguageStyle] = useState(AI_SETTINGS_DEFAULTS.languageStyle);
+  const [responseVerbosity, setResponseVerbosity] = useState(AI_SETTINGS_DEFAULTS.responseVerbosity);
+  const [reasoningDepth, setReasoningDepth] = useState(AI_SETTINGS_DEFAULTS.reasoningDepth);
+  const [actionHorizonDays, setActionHorizonDays] = useState(AI_SETTINGS_DEFAULTS.actionHorizonDays);
 
   useEffect(() => {
     setTeamId(getStoredTeamId());
@@ -31,6 +68,26 @@ export default function WorkspaceMembersPage() {
     enabled: !!teamId,
     queryFn: () => api<MemberRow[]>(`/teams/${teamId}/members`),
   });
+
+  const aiSettings = useQuery({
+    queryKey: ["team-ai-settings", teamId],
+    enabled: !!teamId,
+    queryFn: () => api<TeamAiSettings>(`/teams/${teamId}/ai-settings`),
+  });
+
+  useEffect(() => {
+    if (!aiSettings.data) return;
+    setBusinessFocus(aiSettings.data.businessFocus ?? AI_SETTINGS_DEFAULTS.businessFocus);
+    setCrmPurpose(aiSettings.data.crmPurpose ?? AI_SETTINGS_DEFAULTS.crmPurpose);
+    setTargetAudience(aiSettings.data.targetAudience ?? AI_SETTINGS_DEFAULTS.targetAudience);
+    setToneGuidelines(aiSettings.data.toneGuidelines ?? AI_SETTINGS_DEFAULTS.toneGuidelines);
+    setEmailSignature(aiSettings.data.emailSignature ?? AI_SETTINGS_DEFAULTS.emailSignature);
+    setDefaultClosing(aiSettings.data.defaultClosing ?? AI_SETTINGS_DEFAULTS.defaultClosing);
+    setLanguageStyle(aiSettings.data.languageStyle ?? AI_SETTINGS_DEFAULTS.languageStyle);
+    setResponseVerbosity(aiSettings.data.responseVerbosity ?? AI_SETTINGS_DEFAULTS.responseVerbosity);
+    setReasoningDepth(aiSettings.data.reasoningDepth ?? AI_SETTINGS_DEFAULTS.reasoningDepth);
+    setActionHorizonDays(aiSettings.data.actionHorizonDays ?? AI_SETTINGS_DEFAULTS.actionHorizonDays);
+  }, [aiSettings.data]);
 
   const addMember = useMutation({
     mutationFn: () =>
@@ -59,6 +116,45 @@ export default function WorkspaceMembersPage() {
     },
     onError: (e: Error) => setFormErr(e.message),
   });
+
+  const saveAiSettings = useMutation({
+    mutationFn: () =>
+      api<TeamAiSettings>(`/teams/${teamId}/ai-settings`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          businessFocus: businessFocus.trim() || null,
+          crmPurpose: crmPurpose.trim() || null,
+          targetAudience: targetAudience.trim() || null,
+          toneGuidelines: toneGuidelines.trim() || null,
+          emailSignature: emailSignature.trim() || null,
+          defaultClosing: defaultClosing.trim() || null,
+          languageStyle: languageStyle.trim() || null,
+          responseVerbosity,
+          reasoningDepth,
+          actionHorizonDays,
+        }),
+      }),
+    onSuccess: () => {
+      setSavedMsg("AI workspace settings saved.");
+      setFormErr(null);
+      void qc.invalidateQueries({ queryKey: ["team-ai-settings", teamId] });
+    },
+    onError: (e: Error) => setFormErr(e.message),
+  });
+
+  function prefillAiSettings() {
+    setBusinessFocus(AI_SETTINGS_DEFAULTS.businessFocus);
+    setCrmPurpose(AI_SETTINGS_DEFAULTS.crmPurpose);
+    setTargetAudience(AI_SETTINGS_DEFAULTS.targetAudience);
+    setToneGuidelines(AI_SETTINGS_DEFAULTS.toneGuidelines);
+    setEmailSignature(AI_SETTINGS_DEFAULTS.emailSignature);
+    setDefaultClosing(AI_SETTINGS_DEFAULTS.defaultClosing);
+    setLanguageStyle(AI_SETTINGS_DEFAULTS.languageStyle);
+    setResponseVerbosity(AI_SETTINGS_DEFAULTS.responseVerbosity);
+    setReasoningDepth(AI_SETTINGS_DEFAULTS.reasoningDepth);
+    setActionHorizonDays(AI_SETTINGS_DEFAULTS.actionHorizonDays);
+    setSavedMsg("AI sample settings prefilled. Review and save.");
+  }
 
   if (!ready) {
     return <p className="text-sm text-zinc-600 dark:text-zinc-400">Loading workspace…</p>;
@@ -151,6 +247,79 @@ export default function WorkspaceMembersPage() {
           >
             {addMember.isPending ? "Adding…" : "Add member"}
           </button>
+        </form>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">AI workspace settings</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Configure business context and response behavior used by AI summary, actions, and outreach.
+        </p>
+        <form
+          className="mt-4 grid gap-3 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSavedMsg(null);
+            saveAiSettings.mutate();
+          }}
+        >
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Business focus
+            <input value={businessFocus} onChange={(e) => setBusinessFocus(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            CRM purpose
+            <input value={crmPurpose} onChange={(e) => setCrmPurpose(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Target audience
+            <input value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Language style
+            <input value={languageStyle} onChange={(e) => setLanguageStyle(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="sm:col-span-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Tone guidelines
+            <textarea value={toneGuidelines} onChange={(e) => setToneGuidelines(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="sm:col-span-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Email signature
+            <textarea value={emailSignature} onChange={(e) => setEmailSignature(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Default closing
+            <input value={defaultClosing} onChange={(e) => setDefaultClosing(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Response verbosity (1-5)
+            <input type="number" min={1} max={5} value={responseVerbosity} onChange={(e) => setResponseVerbosity(Number(e.target.value) || 2)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Reasoning depth (1-5)
+            <input type="number" min={1} max={5} value={reasoningDepth} onChange={(e) => setReasoningDepth(Number(e.target.value) || 2)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Action horizon days (1-30)
+            <input type="number" min={1} max={30} value={actionHorizonDays} onChange={(e) => setActionHorizonDays(Number(e.target.value) || 7)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950" />
+          </label>
+          <div className="sm:col-span-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={prefillAiSettings}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+            >
+              Prefill AI sample
+            </button>
+            <button
+              type="submit"
+              disabled={saveAiSettings.isPending || aiSettings.isLoading}
+              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {saveAiSettings.isPending ? "Saving..." : "Save AI settings"}
+            </button>
+            {savedMsg && <p className="text-xs text-emerald-700 dark:text-emerald-300">{savedMsg}</p>}
+          </div>
         </form>
       </section>
 
