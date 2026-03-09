@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /** Distinct styling for AI-generated content vs. regular notes. */
 
@@ -34,15 +36,17 @@ function SparklesIcon({ className }: { className?: string }) {
 export function AiSectionTitle({
   title,
   subtitle,
+  loading = false,
 }: {
   title: string;
   subtitle?: string;
+  loading?: boolean;
 }) {
   return (
     <div className="flex items-start gap-2">
       <SparklesIcon className="mt-0.5 h-5 w-5 shrink-0 text-violet-500 dark:text-violet-400" />
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <h2 className={`text-lg font-semibold tracking-tight ${loading ? "ai-title-shimmer" : ""}`}>{title}</h2>
         {subtitle && (
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
         )}
@@ -56,11 +60,13 @@ export function AiResponsePanel({
   label,
   children,
   loading,
+  markdown,
 }: {
   variant: AiPanelVariant;
   label: string;
   children: ReactNode;
   loading?: boolean;
+  markdown?: string | null;
 }) {
   const v = variants[variant];
   return (
@@ -77,7 +83,15 @@ export function AiResponsePanel({
           <p className="pt-1 text-xs text-zinc-600 dark:text-zinc-400">Generating…</p>
         </div>
       ) : (
-        <div className="mt-2 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{children}</div>
+        <div className="mt-2 text-zinc-800 dark:text-zinc-200">
+          {typeof markdown === "string" ? (
+            <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-li:my-1">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap">{children}</div>
+          )}
+        </div>
       )}
     </div>
   );

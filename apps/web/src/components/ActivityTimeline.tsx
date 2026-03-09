@@ -21,6 +21,24 @@ function formatWhen(iso: string) {
   }
 }
 
+function renderChanges(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const changes = (metadata as { changes?: Record<string, { from?: unknown; to?: unknown }> }).changes;
+  if (!changes || typeof changes !== "object") return null;
+  const entries = Object.entries(changes);
+  if (!entries.length) return null;
+  return (
+    <ul className="mt-1 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+      {entries.map(([field, diff]) => (
+        <li key={field}>
+          <span className="font-medium">{field}</span>: {String(diff.from ?? "empty")} {"->"}{" "}
+          {String(diff.to ?? "empty")}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function ActivityTimeline({
   items,
   emptyLabel = "No activity yet.",
@@ -45,6 +63,7 @@ export function ActivityTimeline({
           <p className="mt-0.5 text-xs text-zinc-500">
             {a.actor.name ?? a.actor.email} · {formatWhen(a.createdAt)}
           </p>
+          {renderChanges(a.metadata)}
         </li>
       ))}
     </ol>

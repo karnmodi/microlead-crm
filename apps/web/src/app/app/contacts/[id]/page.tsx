@@ -75,8 +75,10 @@ export default function ContactDetailPage() {
         method: "POST",
         body: JSON.stringify({ parentType: "CONTACT", parentId: id, text: noteText }),
       }),
-    onSuccess: () => {
+    onMutate: () => {
       setNoteText("");
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["notes", "CONTACT", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "CONTACT", id] });
     },
@@ -136,6 +138,19 @@ export default function ContactDetailPage() {
   const toggleTask = useMutation({
     mutationFn: ({ taskId, done }: { taskId: string; done: boolean }) =>
       api(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+    onMutate: async ({ taskId, done }) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "CONTACT", id] });
+      const prev = qc.getQueryData<TasksRes>(["tasks", "CONTACT", id]);
+      qc.setQueryData<TasksRes>(["tasks", "CONTACT", id], (old) =>
+        old
+          ? { ...old, data: old.data.map((t) => (t.id === taskId ? { ...t, done } : t)) }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "CONTACT", id], ctx.prev);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks", "CONTACT", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "CONTACT", id] });
@@ -148,6 +163,20 @@ export default function ContactDetailPage() {
         method: "POST",
         body: JSON.stringify({ parentType: "CONTACT", parentId: id, title }),
       }),
+    onMutate: async (title) => {
+      await qc.cancelQueries({ queryKey: ["tasks", "CONTACT", id] });
+      const prev = qc.getQueryData<TasksRes>(["tasks", "CONTACT", id]);
+      const tempId = `temp-${Date.now()}`;
+      qc.setQueryData<TasksRes>(["tasks", "CONTACT", id], (old) =>
+        old
+          ? { ...old, data: [{ id: tempId, title, done: false }, ...old.data] }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["tasks", "CONTACT", id], ctx.prev);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks", "CONTACT", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "CONTACT", id] });
@@ -354,6 +383,7 @@ export default function ContactDetailPage() {
         <AiSectionTitle
           title="AI assistant"
           subtitle="Suggested next steps based on this contact."
+          loading={aiLoading}
         />
         {aiError && <p className="text-sm text-red-600 dark:text-red-400">{aiError}</p>}
         <button
@@ -400,15 +430,17 @@ export default function ContactDetailPage() {
           {tasks.data?.data.map((t) => (
             <li
               key={t.id}
-              className="flex items-center gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+              className="flex items-start gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800"
             >
               <input
                 type="checkbox"
                 checked={t.done}
                 onChange={(e) => toggleTask.mutate({ taskId: t.id, done: e.target.checked })}
-                className="h-4 w-4 rounded border-zinc-300"
+                className="mt-0.5 h-4 w-4 rounded border-zinc-300"
               />
-              <span className={t.done ? "text-zinc-400 line-through" : ""}>{t.title}</span>
+              <span className={`whitespace-normal break-words ${t.done ? "text-zinc-400 line-through" : ""}`}>
+                {t.title}
+              </span>
             </li>
           ))}
         </ul>

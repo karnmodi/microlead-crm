@@ -54,8 +54,10 @@ export default function CompanyDetailPage() {
         method: "POST",
         body: JSON.stringify({ parentType: "COMPANY", parentId: id, text: noteText }),
       }),
-    onSuccess: () => {
+    onMutate: () => {
       setNoteText("");
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["notes", "COMPANY", id] });
       void qc.invalidateQueries({ queryKey: ["activities", "COMPANY", id] });
     },
@@ -95,6 +97,26 @@ export default function CompanyDetailPage() {
               : Math.max(0, Number(employeeCount)),
         }),
       }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ["company", id] });
+      const prev = qc.getQueryData<CompanyDetail>(["company", id]);
+      qc.setQueryData<CompanyDetail>(["company", id], (old) =>
+        old
+          ? {
+              ...old,
+              name: name.trim(),
+              website: website.trim() || null,
+              industry: industry.trim() || null,
+              description: description.trim() || null,
+              employeeCount: employeeCount.trim() === "" ? null : Math.max(0, Number(employeeCount)),
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["company", id], ctx.prev);
+    },
     onSuccess: () => {
       setEditOpen(false);
       void qc.invalidateQueries({ queryKey: ["company", id] });
