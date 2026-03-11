@@ -63,20 +63,22 @@ model Team {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  members        TeamMember[]
-  invites        TeamInvite[]
-  companies      Company[]
-  contacts       Contact[]
-  pipelineStages PipelineStage[]
-  leads          Lead[]
-  tasks          Task[]
-  notes          Note[]
-  activities     Activity[]
-  attachments    Attachment[]
-  leadEmails     LeadEmail[]
-  leadSummaries  LeadSummaryCache[]
-  aiSettings     TeamAiSettings?
-  preferredBy    User[]
+  members           TeamMember[]
+  invites           TeamInvite[]
+  companies         Company[]
+  contacts          Contact[]
+  pipelineStages    PipelineStage[]
+  leads             Lead[]
+  tasks             Task[]
+  notes             Note[]
+  activities        Activity[]
+  attachments       Attachment[]
+  leadEmails        LeadEmail[]
+  leadSummaries     LeadSummaryCache[]
+  aiSettings        TeamAiSettings?
+  preferredBy       User[]
+  integrationSyncs  IntegrationSync[]
+  dashboardBriefing DashboardBriefingCache?
 
   @@map("teams")
 }
@@ -136,16 +138,25 @@ model TeamInvite {
 }
 
 model Company {
-  id             String    @id @default(uuid())
-  teamId         String    @map("team_id")
-  name           String
-  website        String?
-  industry       String?
-  description    String?   @db.Text
-  employeeCount  Int?      @map("employee_count")
-  deletedAt      DateTime? @map("deleted_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id               String    @id @default(uuid())
+  teamId           String    @map("team_id")
+  name             String
+  website          String?
+  industry         String?
+  description      String?   @db.Text
+  employeeCount    Int?      @map("employee_count")
+  companyNumber    String?   @map("company_number")
+  addressLine1     String?   @map("address_line_1")
+  addressLine2     String?   @map("address_line_2")
+  addressCity      String?   @map("address_city")
+  addressPostcode  String?   @map("address_postcode")
+  addressCountry   String?   @map("address_country")
+  enrichedData     Json?     @map("enriched_data")
+  enrichedAt       DateTime? @map("enriched_at")
+  enrichmentSource String?   @map("enrichment_source")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   contacts Contact[]
@@ -345,4 +356,37 @@ model Attachment {
   @@index([teamId, parentType, parentId])
   @@index([teamId, extractionStatus])
   @@map("attachments")
+}
+
+model IntegrationSync {
+  id                  String    @id @default(uuid())
+  teamId              String    @map("team_id")
+  integration         String
+  status              String    @default("idle")
+  lastRunAt           DateTime? @map("last_run_at")
+  lastError           String?   @map("last_error") @db.Text
+  recordsUpdated      Int       @default(0) @map("records_updated")
+  apiKeyEncrypted     String?   @map("api_key_encrypted") @db.Text
+  enrichmentFieldKeys Json?     @map("enrichment_field_keys")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, integration])
+  @@index([teamId])
+  @@map("integration_syncs")
+}
+
+model DashboardBriefingCache {
+  id          String   @id @default(uuid())
+  teamId      String   @unique @map("team_id")
+  content     String   @db.Text
+  generatedAt DateTime @map("generated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_briefing_cache")
 }
