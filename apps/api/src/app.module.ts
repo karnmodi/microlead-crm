@@ -12,6 +12,7 @@ import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { TeamMinimumRoleGuard } from "./common/guards/team-minimum-role.guard";
 import { CompaniesModule } from "./companies/companies.module";
 import { ContactsModule } from "./contacts/contacts.module";
+import { IntegrationsModule } from "./integrations/integrations.module";
 import { LeadsModule } from "./leads/leads.module";
 import { NotesModule } from "./notes/notes.module";
 import { PipelineStagesModule } from "./pipeline-stages/pipeline-stages.module";
@@ -41,6 +42,7 @@ import { UsersModule } from "./users/users.module";
     AttachmentsModule,
     AiModule,
     SearchModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [
