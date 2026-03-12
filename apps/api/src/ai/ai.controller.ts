@@ -128,4 +128,9 @@ export class AiController {
   ) {
     return this.ai.logLinkedinDraftIntent(team.teamId, user.id, dto.leadId, dto.message);
   }
+
+  @Post("win-probability")
+  winProbability(@CurrentTeam() team: TeamContext, @Body() dto: LeadIdBody) {
+    return this.ai.predictWinProbability(team.teamId, dto.leadId);
+  }
 }

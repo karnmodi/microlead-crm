@@ -8,5 +8,6 @@ import { AiService } from "./ai.service";
   imports: [TasksModule, MailModule],
   controllers: [AiController],
   providers: [AiService],
+  exports: [AiService],
 })
 export class AiModule {}

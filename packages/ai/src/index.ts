@@ -113,6 +113,68 @@ export function buildNextActionsPrompt(ctx: NextActionsContext): string {
   return lines.join("\n");
 }
 
+export type WinProbabilityContext = {
+  leadTitle: string;
+  stageName: string;
+  priority: string;
+  status: string;
+  value?: string;
+  currency?: string;
+  description?: string;
+  expectedCloseDate?: string;
+  source?: string;
+  tags?: string[];
+  companyName?: string;
+  contactName?: string;
+  noteCount: number;
+  recentNotes: string[];
+  openTaskCount: number;
+  completedTaskCount: number;
+  activityCount: number;
+  daysSinceCreated: number;
+  daysUntilClose?: number;
+  businessContext?: string;
+};
+
+export function buildWinProbabilityPrompt(ctx: WinProbabilityContext): string {
+  const lines = [
+    "You are an expert B2B sales analyst. Predict the win probability for this sales lead.",
+    "Analyze all available signals: stage progress, engagement level, deal characteristics, timeline, and risk factors.",
+    `Lead: ${ctx.leadTitle}`,
+    `Stage: ${ctx.stageName}`,
+    `Priority: ${ctx.priority}`,
+    `Status: ${ctx.status}`,
+  ];
+  if (ctx.value) lines.push(`Deal value: ${ctx.value} ${ctx.currency ?? "USD"}`);
+  if (ctx.description) lines.push(`Description: ${ctx.description}`);
+  if (ctx.source) lines.push(`Lead source: ${ctx.source}`);
+  if (ctx.tags?.length) lines.push(`Tags: ${ctx.tags.join(", ")}`);
+  if (ctx.companyName) lines.push(`Company: ${ctx.companyName}`);
+  if (ctx.contactName) lines.push(`Contact: ${ctx.contactName}`);
+  lines.push(`Notes logged: ${ctx.noteCount}`);
+  lines.push(`Open tasks: ${ctx.openTaskCount}`);
+  lines.push(`Completed tasks: ${ctx.completedTaskCount}`);
+  lines.push(`Total activities: ${ctx.activityCount}`);
+  lines.push(`Days since lead created: ${ctx.daysSinceCreated}`);
+  if (ctx.daysUntilClose != null) {
+    lines.push(`Days until expected close: ${ctx.daysUntilClose}`);
+  }
+  if (ctx.expectedCloseDate) lines.push(`Expected close date: ${ctx.expectedCloseDate}`);
+  if (ctx.recentNotes.length) {
+    lines.push("Recent notes (latest first):");
+    ctx.recentNotes.slice(0, 5).forEach((n, i) => lines.push(`  ${i + 1}. ${n}`));
+  }
+  if (ctx.businessContext) lines.push(`Business context:\n${ctx.businessContext}`);
+  lines.push("");
+  lines.push("Return ONLY valid JSON. No markdown, no code fences.");
+  lines.push('Shape: {"score": <integer 0-100>, "reasoning": "<1-2 sentence explanation>", "signals": {"positive": ["..."], "negative": ["..."]}}');
+  lines.push("score must be an integer between 0 and 100.");
+  lines.push("reasoning: concise explanation of the key factors driving this score.");
+  lines.push("signals.positive: up to 3 factors increasing the score.");
+  lines.push("signals.negative: up to 3 factors decreasing the score.");
+  return lines.join("\n");
+}
+
 export type OutreachContext = {
   channel: "email" | "linkedin";
   leadTitle: string;

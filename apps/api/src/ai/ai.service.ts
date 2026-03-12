@@ -17,6 +17,7 @@ import {
   buildLeadSummaryPrompt,
   buildNextActionsPrompt,
   buildOutreachDraftPrompt,
+  buildWinProbabilityPrompt,
   type DocumentExtract,
 } from "@microlead-crm/ai";
 import { ActivitiesService } from "../activities/activities.service";
@@ -844,6 +845,138 @@ export class AiService implements OnModuleInit {
       messagePreview: message.slice(0, 240),
     });
     return { ok: true };
+  }
+
+  async predictWinProbability(teamId: string, leadId: string) {
+    const lead = await this.prisma.lead.findFirst({
+      where: { id: leadId, teamId, deletedAt: null },
+      include: { stage: true, company: true, contact: true },
+    });
+    if (!lead) throw new NotFoundException("Lead not found");
+
+    const [notes, tasks, activities, settings] = await Promise.all([
+      this.prisma.note.findMany({
+        where: { teamId, deletedAt: null, parentType: "LEAD", parentId: leadId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { body: true },
+      }),
+      this.prisma.task.findMany({
+        where: { teamId, deletedAt: null, parentType: "LEAD", parentId: leadId },
+        select: { done: true },
+      }),
+      this.prisma.activity.findMany({
+        where: { teamId, entityType: "LEAD", entityId: leadId },
+        select: { id: true },
+        take: 100,
+      }),
+      this.teamAiSettings(teamId),
+    ]);
+
+    const daysSinceCreated = Math.floor(
+      (Date.now() - new Date(lead.createdAt).getTime()) / 86_400_000,
+    );
+    const daysUntilClose = lead.expectedCloseDate
+      ? Math.floor((new Date(lead.expectedCloseDate).getTime() - Date.now()) / 86_400_000)
+      : undefined;
+
+    const tagList = tagsFromJson(lead.tags);
+    const prompt = buildWinProbabilityPrompt({
+      leadTitle: lead.title,
+      stageName: lead.stage.name,
+      priority: lead.priority,
+      status: lead.status,
+      value: lead.value != null ? String(lead.value) : undefined,
+      currency: lead.currency ?? undefined,
+      description: lead.description ?? undefined,
+      expectedCloseDate: lead.expectedCloseDate?.toISOString().slice(0, 10),
+      source: lead.source ?? undefined,
+      tags: tagList,
+      companyName: lead.company?.name,
+      contactName: lead.contact
+        ? `${lead.contact.firstName} ${lead.contact.lastName}`
+        : undefined,
+      noteCount: notes.length,
+      recentNotes: notes.map((n) => n.body),
+      openTaskCount: tasks.filter((t) => !t.done).length,
+      completedTaskCount: tasks.filter((t) => t.done).length,
+      activityCount: activities.length,
+      daysSinceCreated,
+      daysUntilClose,
+      businessContext: this.settingsContext(settings),
+    });
+
+    const text = await this.complete(
+      "You are an expert B2B sales analyst. Return valid JSON only. No markdown or code fences.",
+      prompt,
+    );
+
+    const parsed = this.parseJson<{
+      score?: number;
+      reasoning?: string;
+      signals?: { positive?: string[]; negative?: string[] };
+    }>(text);
+
+    const score = typeof parsed?.score === "number"
+      ? Math.min(100, Math.max(0, Math.round(parsed.score)))
+      : null;
+
+    if (score !== null) {
+      await this.prisma.lead.update({
+        where: { id: leadId },
+        data: { probability: score },
+      });
+    }
+
+    return {
+      score,
+      reasoning: parsed?.reasoning?.trim() ?? "",
+      signals: {
+        positive: parsed?.signals?.positive ?? [],
+        negative: parsed?.signals?.negative ?? [],
+      },
+    };
+  }
+
+  /** Generate a daily sales intelligence briefing for the dashboard. */
+  async generateDashboardBriefing(data: {
+    totalLeads: number;
+    openValue: number;
+    currency: string;
+    closingSoon: number;
+    overdueTasks: number;
+    dueTodayTasks: number;
+    topLeads: Array<{ title: string; value: string | null; stageName: string }>;
+    leadsByStage: Array<{ stageName: string; count: number }>;
+    recentActions: string[];
+  }): Promise<string> {
+    const topLeadLines = data.topLeads
+      .map((l) => `- "${l.title}" (${l.stageName}${l.value ? `, ${data.currency} ${l.value}` : ""})`)
+      .join("\n");
+    const stageLines = data.leadsByStage
+      .map((s) => `- ${s.stageName}: ${s.count} lead${s.count !== 1 ? "s" : ""}`)
+      .join("\n");
+    const activitySummary = data.recentActions.slice(0, 5).join("; ");
+
+    const userPrompt = `Pipeline snapshot as of today:
+- Total open leads: ${data.totalLeads}
+- Combined pipeline value: ${data.currency} ${data.openValue.toLocaleString()}
+- Leads closing in next 7 days: ${data.closingSoon}
+- Overdue tasks: ${data.overdueTasks}
+- Tasks due today: ${data.dueTodayTasks}
+
+Top leads by value:
+${topLeadLines || "None"}
+
+Pipeline by stage:
+${stageLines || "No stages configured"}
+
+Recent activity: ${activitySummary || "No recent activity"}`;
+
+    return this.complete(
+      "You are a concise B2B sales coach. Based on the pipeline data, write a 3-5 sentence daily briefing for the sales team. Highlight the top priority actions, flag any risks (overdue tasks, stalled deals), and end with one motivational insight. Be direct, actionable, and professional. Do not use bullet points — write in flowing prose.",
+      userPrompt,
+    );
   }
 }
 
