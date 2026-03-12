@@ -40,6 +40,11 @@ class CompanyCreateDto {
   @IsInt()
   @Min(0)
   employeeCount?: number;
+
+  /** UK Companies House company number (CRN), e.g. 00445790 */
+  @IsOptional()
+  @IsString()
+  companyNumber?: string;
 }
 
 class CompanyUpdateDto {
@@ -64,6 +69,10 @@ class CompanyUpdateDto {
   @IsInt()
   @Min(0)
   employeeCount?: number | null;
+
+  @IsOptional()
+  @IsString()
+  companyNumber?: string | null;
 }
 
 class CompanyListQuery {

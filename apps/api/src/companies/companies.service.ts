@@ -35,6 +35,13 @@ export class CompaniesService {
   async get(teamId: string, id: string) {
     const row = await this.prisma.company.findFirst({
       where: { id, teamId, deletedAt: null },
+      include: {
+        contacts: {
+          where: { deletedAt: null },
+          select: { id: true, firstName: true, lastName: true, email: true, jobTitle: true },
+          orderBy: { updatedAt: "desc" },
+        },
+      },
     });
     if (!row) throw new NotFoundException();
     return row;
@@ -43,8 +50,16 @@ export class CompaniesService {
   async create(
     teamId: string,
     userId: string,
-    body: { name: string; website?: string; industry?: string; description?: string; employeeCount?: number },
+    body: {
+      name: string;
+      website?: string;
+      industry?: string;
+      description?: string;
+      employeeCount?: number;
+      companyNumber?: string;
+    },
   ) {
+    const crn = body.companyNumber?.trim() || undefined;
     const row = await this.prisma.company.create({
       data: {
         teamId,
@@ -53,6 +68,7 @@ export class CompaniesService {
         industry: body.industry,
         description: body.description,
         employeeCount: body.employeeCount,
+        ...(crn !== undefined ? { companyNumber: crn } : {}),
       },
     });
     await this.activities.append(teamId, userId, "COMPANY", row.id, "company.created", {
@@ -71,12 +87,20 @@ export class CompaniesService {
       industry?: string | null;
       description?: string | null;
       employeeCount?: number | null;
+      companyNumber?: string | null;
     },
   ) {
     await this.get(teamId, id);
+    const data: Parameters<typeof this.prisma.company.update>[0]["data"] = { ...body };
+    if (body.companyNumber !== undefined) {
+      data.companyNumber =
+        body.companyNumber === null || body.companyNumber.trim() === ""
+          ? null
+          : body.companyNumber.trim();
+    }
     const row = await this.prisma.company.update({
       where: { id },
-      data: body,
+      data,
     });
     await this.activities.append(teamId, userId, "COMPANY", id, "company.updated", body);
     return row;
