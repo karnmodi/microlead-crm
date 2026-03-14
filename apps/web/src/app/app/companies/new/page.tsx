@@ -2,30 +2,57 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { CompanyForm, type CompanyFormValues } from "@/components/CompanyForm";
 import { api } from "@/lib/api";
+import {
+  companiesHouseSuggestedToFormPatch,
+  type CompaniesHouseFormSuggested,
+} from "@/lib/ch-form-lookup";
+import { integrationsStatusQuery } from "@/lib/dashboard-stats";
 
 export default function NewCompanyPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [website, setWebsite] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [description, setDescription] = useState("");
-  const [employeeCount, setEmployeeCount] = useState("");
+
+  const [values, setValues] = useState<CompanyFormValues>({
+    name: "",
+    website: "",
+    companyNumber: "",
+    industry: "",
+    description: "",
+    employeeCount: "",
+  });
+
+  const integrations = useQuery(integrationsStatusQuery);
+  const chConfigured =
+    integrations.data?.find((s) => s.integration === "companies_house")?.configured ?? false;
+
+  const chFormLookup = useMutation({
+    mutationFn: async (crn: string) => {
+      const res = await api<{ suggested: CompaniesHouseFormSuggested }>(
+        "/integrations/companies-house/lookup",
+        { method: "POST", body: JSON.stringify({ companyNumber: crn }) },
+      );
+      return companiesHouseSuggestedToFormPatch(res.suggested);
+    },
+  });
 
   const create = useMutation({
     mutationFn: () =>
       api<{ id: string }>("/companies", {
         method: "POST",
         body: JSON.stringify({
-          name: name.trim(),
-          website: website.trim() || undefined,
-          industry: industry.trim() || undefined,
-          description: description.trim() || undefined,
+          name: values.name.trim(),
+          website: values.website.trim() || undefined,
+          companyNumber: values.companyNumber.trim() || undefined,
+          industry: values.industry.trim() || undefined,
+          description: values.description.trim() || undefined,
           employeeCount:
-            employeeCount.trim() === "" ? undefined : Math.max(0, Number(employeeCount)),
+            values.employeeCount.trim() === ""
+              ? undefined
+              : Math.max(0, Number(values.employeeCount)),
         }),
       }),
     onSuccess: (row) => {
@@ -37,80 +64,39 @@ export default function NewCompanyPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-semibold tracking-tight">New company</h1>
-      <form
-        className="mt-6 space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          create.mutate();
-        }}
-      >
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Name
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Website
-          <input
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-            placeholder="example.com"
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Industry
-          <input
-            value={industry}
-            onChange={(e) => setIndustry(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Description
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Employee count (approx.)
-          <input
-            type="number"
-            min={0}
-            value={employeeCount}
-            onChange={(e) => setEmployeeCount(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        {create.isError && (
-          <p className="text-sm text-red-600">
-            {create.error instanceof Error ? create.error.message : "Failed"}
-          </p>
-        )}
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={create.isPending}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            {create.isPending ? "Creating…" : "Create"}
-          </button>
-          <Link
-            href="/app/companies"
-            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
+      <div className="mb-6 flex items-center gap-3">
+        <Link
+          href="/app/companies"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        >
+          ←
+        </Link>
+        <h1 className="text-xl font-semibold tracking-tight">New company</h1>
+      </div>
+
+      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <CompanyForm
+          mode="create"
+          values={values}
+          onChange={(patch) => setValues((v) => ({ ...v, ...patch }))}
+          onSubmit={() => create.mutate()}
+          onCancel={() => router.push("/app/companies")}
+          isPending={create.isPending}
+          isError={create.isError}
+          errorMessage={
+            create.error instanceof Error ? create.error.message : undefined
+          }
+          companiesHouseLookup={{
+            configured: chConfigured,
+            isPending: chFormLookup.isPending,
+            errorMessage:
+              chFormLookup.isError && chFormLookup.error instanceof Error
+                ? chFormLookup.error.message
+                : null,
+            onFetch: (crn) => chFormLookup.mutateAsync(crn),
+          }}
+        />
+      </div>
     </div>
   );
 }
