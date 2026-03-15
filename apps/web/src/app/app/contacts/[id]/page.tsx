@@ -8,6 +8,7 @@ import { ActivityTimeline, type ActivityRow } from "@/components/ActivityTimelin
 import { AiResponsePanel, AiSectionTitle } from "@/components/AiResponsePanel";
 import { DetailPageSkeleton } from "@/components/page-skeletons";
 import { AttachmentSection } from "@/components/AttachmentSection";
+import { ContactForm, type ContactFormValues } from "@/components/ContactForm";
 import { api } from "@/lib/api";
 
 type ContactDetail = {
@@ -85,23 +86,27 @@ export default function ContactDetailPage() {
   });
 
   const [editOpen, setEditOpen] = useState(false);
-  const [fn, setFn] = useState("");
-  const [ln, setLn] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [companyId, setCompanyId] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [editValues, setEditValues] = useState<ContactFormValues>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    companyId: "",
+    jobTitle: "",
+    linkedinUrl: "",
+  });
 
   function openEdit() {
     if (!contact.data) return;
-    setFn(contact.data.firstName);
-    setLn(contact.data.lastName);
-    setEmail(contact.data.email ?? "");
-    setPhone(contact.data.phone ?? "");
-    setCompanyId(contact.data.companyId ?? "");
-    setJobTitle(contact.data.jobTitle ?? "");
-    setLinkedinUrl(contact.data.linkedinUrl ?? "");
+    setEditValues({
+      firstName: contact.data.firstName,
+      lastName: contact.data.lastName,
+      email: contact.data.email ?? "",
+      phone: contact.data.phone ?? "",
+      companyId: contact.data.companyId ?? "",
+      jobTitle: contact.data.jobTitle ?? "",
+      linkedinUrl: contact.data.linkedinUrl ?? "",
+    });
     setEditOpen(true);
   }
 
@@ -110,13 +115,13 @@ export default function ContactDetailPage() {
       api(`/contacts/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          firstName: fn.trim(),
-          lastName: ln.trim(),
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          companyId: companyId || null,
-          jobTitle: jobTitle.trim() || undefined,
-          linkedinUrl: linkedinUrl.trim() || undefined,
+          firstName: editValues.firstName.trim(),
+          lastName: editValues.lastName.trim(),
+          email: editValues.email.trim() || undefined,
+          phone: editValues.phone.trim() || undefined,
+          companyId: editValues.companyId || null,
+          jobTitle: editValues.jobTitle.trim() || undefined,
+          linkedinUrl: editValues.linkedinUrl.trim() || undefined,
         }),
       }),
     onSuccess: () => {
@@ -284,92 +289,19 @@ export default function ContactDetailPage() {
       </div>
 
       {editOpen && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-semibold">Edit contact</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              First name
-              <input
-                value={fn}
-                onChange={(e) => setFn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Last name
-              <input
-                value={ln}
-                onChange={(e) => setLn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Email
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Phone
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-              Company
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                <option value="">— None —</option>
-                {companies.data?.data.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-              Job title
-              <input
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-              LinkedIn URL
-              <input
-                type="url"
-                value={linkedinUrl}
-                onChange={(e) => setLinkedinUrl(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {save.isPending ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditOpen(false)}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
-            >
-              Cancel
-            </button>
-          </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-sm font-semibold">Edit contact</h2>
+          <ContactForm
+            mode="edit"
+            values={editValues}
+            onChange={(patch) => setEditValues((v) => ({ ...v, ...patch }))}
+            companies={companies.data?.data ?? []}
+            onSubmit={() => save.mutate()}
+            onCancel={() => setEditOpen(false)}
+            isPending={save.isPending}
+            isError={save.isError}
+            errorMessage={save.error instanceof Error ? save.error.message : undefined}
+          />
         </div>
       )}
 
