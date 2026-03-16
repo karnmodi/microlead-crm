@@ -8,6 +8,7 @@ import { ActivityTimeline, type ActivityRow } from "@/components/ActivityTimelin
 import { AiResponsePanel, AiSectionTitle } from "@/components/AiResponsePanel";
 import { DetailPageSkeleton, TimelineSkeleton } from "@/components/page-skeletons";
 import { AttachmentSection } from "@/components/AttachmentSection";
+import { LeadForm, type LeadFormValues } from "@/components/LeadForm";
 import { api } from "@/lib/api";
 
 type LeadDetail = {
@@ -59,9 +60,6 @@ type AiNextActionsRes = {
 };
 type AiSummaryRes = { summary: string; summaryMarkdown?: string; cached?: boolean };
 type AiDraftRes = { draft: string; draftMarkdown?: string; subject?: string; body?: string };
-const priorities = ["LOW", "MEDIUM", "HIGH"] as const;
-const statuses = ["OPEN", "WON", "LOST"] as const;
-
 function tagsToString(tags: unknown): string {
   if (tags == null) return "";
   if (Array.isArray(tags) && tags.every((t) => typeof t === "string")) return tags.join(", ");
@@ -194,66 +192,68 @@ export default function LeadDetailPage() {
   });
 
   const [editOpen, setEditOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editStageId, setEditStageId] = useState("");
-  const [editPriority, setEditPriority] = useState<string>("MEDIUM");
-  const [editValue, setEditValue] = useState("");
-  const [editCompanyId, setEditCompanyId] = useState<string>("");
-  const [editContactId, setEditContactId] = useState<string>("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editCurrency, setEditCurrency] = useState("USD");
-  const [editProbability, setEditProbability] = useState("");
-  const [editSource, setEditSource] = useState("");
-  const [editStatus, setEditStatus] = useState<string>("OPEN");
-  const [editExpectedClose, setEditExpectedClose] = useState("");
-  const [editTags, setEditTags] = useState("");
-  const [editLostReason, setEditLostReason] = useState("");
+  const [editValues, setEditValues] = useState<LeadFormValues>({
+    title: "",
+    stageId: "",
+    priority: "MEDIUM",
+    status: "OPEN",
+    value: "",
+    currency: "USD",
+    companyId: "",
+    contactId: "",
+    description: "",
+    source: "",
+    tags: "",
+    expectedClose: "",
+    lostReason: "",
+  });
 
   function openEdit() {
     if (!lead.data) return;
     const L = lead.data;
-    setEditTitle(L.title);
-    setEditStageId(L.stageId);
-    setEditPriority(L.priority);
-    setEditValue(L.value != null ? String(L.value) : "");
-    setEditCompanyId(L.companyId ?? "");
-    setEditContactId(L.contactId ?? "");
-    setEditDescription(L.description ?? "");
-    setEditCurrency(L.currency ?? "USD");
-    setEditProbability(L.probability != null ? String(L.probability) : "");
-    setEditSource(L.source ?? "");
-    setEditStatus(L.status ?? "OPEN");
-    setEditExpectedClose(L.expectedCloseDate ? L.expectedCloseDate.slice(0, 10) : "");
-    setEditTags(tagsToString(L.tags));
-    setEditLostReason(L.lostReason ?? "");
+    setEditValues({
+      title: L.title,
+      stageId: L.stageId,
+      priority: L.priority,
+      status: L.status ?? "OPEN",
+      value: L.value != null ? String(L.value) : "",
+      currency: L.currency ?? "USD",
+      companyId: L.companyId ?? "",
+      contactId: L.contactId ?? "",
+      description: L.description ?? "",
+      source: L.source ?? "",
+      tags: tagsToString(L.tags),
+      expectedClose: L.expectedCloseDate ? L.expectedCloseDate.slice(0, 10) : "",
+      lostReason: L.lostReason ?? "",
+    });
     setEditOpen(true);
   }
 
   const saveLead = useMutation({
     mutationFn: () => {
-      const tags = editTags
+      const tags = editValues.tags
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      const prob =
-        editProbability.trim() === "" ? null : Math.min(100, Math.max(0, Number(editProbability)));
       return api(`/leads/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          title: editTitle,
-          stageId: editStageId,
-          priority: editPriority,
-          value: editValue.trim() === "" ? null : Number(editValue),
-          companyId: editCompanyId || null,
-          contactId: editContactId || null,
-          description: editDescription.trim() || null,
-          currency: editCurrency.trim() || "USD",
-          probability: prob,
-          source: editSource.trim() || null,
-          status: editStatus,
-          expectedCloseDate: editExpectedClose ? `${editExpectedClose}T12:00:00.000Z` : null,
+          title: editValues.title,
+          stageId: editValues.stageId,
+          priority: editValues.priority,
+          value: editValues.value.trim() === "" ? null : Number(editValues.value),
+          companyId: editValues.companyId || null,
+          contactId: editValues.contactId || null,
+          description: editValues.description.trim() || null,
+          currency: editValues.currency.trim() || "USD",
+          source: editValues.source.trim() || null,
+          status: editValues.status,
+          expectedCloseDate: editValues.expectedClose
+            ? `${editValues.expectedClose}T12:00:00.000Z`
+            : null,
           tags,
-          lostReason: editStatus === "LOST" ? editLostReason.trim() || null : null,
+          lostReason:
+            editValues.status === "LOST" ? editValues.lostReason?.trim() || null : null,
         }),
       });
     },
@@ -264,22 +264,23 @@ export default function LeadDetailPage() {
         old
           ? {
               ...old,
-              title: editTitle,
-              stageId: editStageId,
-              priority: editPriority,
-              value: editValue.trim() === "" ? null : Number(editValue),
-              companyId: editCompanyId || null,
-              contactId: editContactId || null,
-              description: editDescription.trim() || null,
-              currency: editCurrency.trim() || "USD",
-              probability:
-                editProbability.trim() === ""
-                  ? null
-                  : Math.min(100, Math.max(0, Number(editProbability))),
-              source: editSource.trim() || null,
-              status: editStatus,
-              expectedCloseDate: editExpectedClose ? `${editExpectedClose}T12:00:00.000Z` : null,
-              lostReason: editStatus === "LOST" ? editLostReason.trim() || null : null,
+              title: editValues.title,
+              stageId: editValues.stageId,
+              priority: editValues.priority,
+              value: editValues.value.trim() === "" ? null : Number(editValues.value),
+              companyId: editValues.companyId || null,
+              contactId: editValues.contactId || null,
+              description: editValues.description.trim() || null,
+              currency: editValues.currency.trim() || "USD",
+              source: editValues.source.trim() || null,
+              status: editValues.status ?? "OPEN",
+              expectedCloseDate: editValues.expectedClose
+                ? `${editValues.expectedClose}T12:00:00.000Z`
+                : null,
+              lostReason:
+                editValues.status === "LOST"
+                  ? editValues.lostReason?.trim() || null
+                  : null,
             }
           : old,
       );
@@ -403,6 +404,27 @@ export default function LeadDetailPage() {
   const [showAiInsight, setShowAiInsight] = useState(false);
   const autoSummaryRequestedForId = useRef<string | null>(null);
 
+  const [winProb, setWinProb] = useState<{
+    score: number | null;
+    reasoning: string;
+    loading: boolean;
+  }>({ score: null, reasoning: "", loading: false });
+  const winProbRequestedForId = useRef<string | null>(null);
+
+  const refreshWinProbability = useCallback(async () => {
+    setWinProb((prev) => ({ ...prev, loading: true }));
+    try {
+      const r = await api<{ score: number | null; reasoning: string }>(
+        "/ai/win-probability",
+        { method: "POST", body: JSON.stringify({ leadId: id }) },
+      );
+      setWinProb({ score: r.score, reasoning: r.reasoning, loading: false });
+      void qc.invalidateQueries({ queryKey: ["lead", id] });
+    } catch {
+      setWinProb((prev) => ({ ...prev, loading: false }));
+    }
+  }, [id, qc]);
+
   const runAi = useCallback(async (kind: "summary" | "next" | "outreach") => {
     setAiError(null);
     setAiLoading((prev) => ({ ...prev, [kind]: true }));
@@ -513,6 +535,18 @@ export default function LeadDetailPage() {
     void runAi("summary");
   }, [id, lead.isLoading, lead.error, runAi]);
 
+  useEffect(() => {
+    if (!id || lead.isLoading || lead.error) return;
+    if (winProbRequestedForId.current === id) return;
+    winProbRequestedForId.current = id;
+    const stored = lead.data?.probability;
+    if (stored != null) {
+      setWinProb({ score: stored, reasoning: "", loading: false });
+    } else {
+      void refreshWinProbability();
+    }
+  }, [id, lead.isLoading, lead.error, lead.data?.probability, refreshWinProbability]);
+
   const sortedLeadTasks = useMemo(() => {
     const list = tasks.data?.data ?? [];
     return [...list].sort((a, b) => {
@@ -579,7 +613,7 @@ export default function LeadDetailPage() {
             </Link>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {metaPill("Stage", L.stage.name)}
           {metaPill("Status", L.status)}
           {metaPill("Priority", L.priority)}
@@ -587,7 +621,39 @@ export default function LeadDetailPage() {
             "Value",
             L.value != null && L.value !== "" ? `${typeof L.value === "string" ? L.value : L.value} ${L.currency}` : null,
           )}
-          {metaPill("Win", L.probability != null ? `${L.probability}%` : null)}
+          {/* AI Win Probability Ring */}
+          <button
+            type="button"
+            title={winProb.reasoning || "Click to refresh AI win probability"}
+            onClick={() => void refreshWinProbability()}
+            disabled={winProb.loading}
+            className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-wait dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <svg
+              viewBox="0 0 28 28"
+              className={`h-6 w-6 shrink-0 ${winProb.loading ? "animate-spin opacity-50" : ""}`}
+              aria-hidden
+            >
+              <circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" strokeOpacity="0.15" strokeWidth="3" />
+              {winProb.score != null && (
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="11"
+                  fill="none"
+                  stroke={winProb.score >= 70 ? "#22c55e" : winProb.score >= 40 ? "#f59e0b" : "#ef4444"}
+                  strokeWidth="3"
+                  strokeDasharray={`${(winProb.score / 100) * 69.12} 69.12`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 14 14)"
+                />
+              )}
+              <text x="14" y="18" textAnchor="middle" fontSize="8" fill="currentColor" fontWeight="600">
+                {winProb.loading ? "…" : winProb.score != null ? `${winProb.score}%` : "AI"}
+              </text>
+            </svg>
+            <span>Win</span>
+          </button>
           {metaPill("Source", L.source)}
           {metaPill("Close", compactDate(L.expectedCloseDate))}
           {metaPill("Owner", L.owner ? (L.owner.name ?? L.owner.email) : null)}
@@ -635,180 +701,26 @@ export default function LeadDetailPage() {
       </section>
 
       {editOpen && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-semibold">Edit lead</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Title
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Stage
-              <select
-                value={editStageId}
-                onChange={(e) => setEditStageId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                {stages.data?.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Priority
-              <select
-                value={editPriority}
-                onChange={(e) => setEditPriority(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                {priorities.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Value (optional)
-              <input
-                type="number"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Company
-              <select
-                value={editCompanyId}
-                onChange={(e) => setEditCompanyId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                <option value="">— None —</option>
-                {companies.data?.data.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Contact
-              <select
-                value={editContactId}
-                onChange={(e) => setEditContactId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                <option value="">— None —</option>
-                {contacts.data?.data.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.firstName} {c.lastName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-              Description
-              <textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                rows={3}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Currency
-              <input
-                value={editCurrency}
-                onChange={(e) => setEditCurrency(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm uppercase dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Win probability (0–100)
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={editProbability}
-                onChange={(e) => setEditProbability(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Source
-              <input
-                value={editSource}
-                onChange={(e) => setEditSource(e.target.value)}
-                placeholder="e.g. inbound, referral"
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Status
-              <select
-                value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              >
-                {statuses.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Expected close
-              <input
-                type="date"
-                value={editExpectedClose}
-                onChange={(e) => setEditExpectedClose(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-              Tags (comma-separated)
-              <input
-                value={editTags}
-                onChange={(e) => setEditTags(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-              />
-            </label>
-            {editStatus === "LOST" && (
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 sm:col-span-2">
-                Lost reason
-                <input
-                  value={editLostReason}
-                  onChange={(e) => setEditLostReason(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100"
-                />
-              </label>
-            )}
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Edit lead</h2>
+            <p className="text-xs text-zinc-500">Win % is computed by AI — not editable here.</p>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => saveLead.mutate()}
-              disabled={saveLead.isPending || !editTitle.trim()}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {saveLead.isPending ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditOpen(false)}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
-            >
-              Cancel
-            </button>
-          </div>
+          <LeadForm
+            mode="edit"
+            values={editValues}
+            onChange={(patch) => setEditValues((v) => ({ ...v, ...patch }))}
+            stages={stages.data ?? []}
+            companies={companies.data?.data ?? []}
+            contacts={contacts.data?.data ?? []}
+            onSubmit={() => saveLead.mutate()}
+            onCancel={() => setEditOpen(false)}
+            isPending={saveLead.isPending}
+            isError={saveLead.isError}
+            errorMessage={
+              saveLead.error instanceof Error ? saveLead.error.message : undefined
+            }
+          />
         </div>
       )}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1.1fr)]">
