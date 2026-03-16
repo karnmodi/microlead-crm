@@ -78,6 +78,18 @@ function TasksIcon() {
   );
 }
 
+function IntegrationsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="7" cy="7" r="3" />
+      <circle cx="17" cy="7" r="3" />
+      <circle cx="17" cy="17" r="3" />
+      <circle cx="7" cy="17" r="3" />
+      <path d="M10 7h4M17 10v4M14 17h-4M7 14v-4" />
+    </svg>
+  );
+}
+
 const links = [
   { href: "/app", label: "Dashboard", icon: DashboardIcon, match: (p: string) => p === "/app" },
   {
@@ -99,6 +111,12 @@ const links = [
     match: (p: string) => p.startsWith("/app/leads"),
   },
   { href: "/app/tasks", label: "Tasks", icon: TasksIcon, match: (p: string) => p.startsWith("/app/tasks") },
+  {
+    href: "/app/integrations",
+    label: "Integrations",
+    icon: IntegrationsIcon,
+    match: (p: string) => p.startsWith("/app/integrations"),
+  },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -114,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   function logout() {
     clearSession();
-    router.replace("/login");
+    router.replace("/");
   }
 
   return (
