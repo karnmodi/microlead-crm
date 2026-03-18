@@ -372,4 +372,21 @@ export class LeadsService {
     await this.activities.append(teamId, userId, "LEAD", id, "lead.deleted", {});
     return row;
   }
+
+  async listEmails(teamId: string, leadId: string) {
+    await this.get(teamId, leadId);
+    const emails = await this.prisma.leadEmail.findMany({
+      where: { teamId, leadId },
+      orderBy: { sentAt: "desc" },
+      select: {
+        id: true,
+        emailTo: true,
+        subject: true,
+        bodyText: true,
+        sentAt: true,
+        actor: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return { data: emails };
+  }
 }

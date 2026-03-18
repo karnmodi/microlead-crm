@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import { Type } from "class-transformer";
 import {
+  IsBoolean,
   IsEmail,
   IsInt,
   IsOptional,
@@ -113,6 +114,24 @@ class ContactListQuery {
   companyId?: string;
 }
 
+class LinkCompanyDto {
+  @IsUUID()
+  companyId!: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  makePrimary?: boolean;
+}
+
+class SetPrimaryCompanyDto {
+  @IsUUID()
+  companyId!: string;
+}
+
 @Controller("contacts")
 @UseGuards(TeamGuard)
 export class ContactsController {
@@ -155,5 +174,35 @@ export class ContactsController {
     @Param("id", ParseUUIDPipe) id: string,
   ) {
     return this.contacts.remove(team.teamId, user.id, id);
+  }
+
+  /** Link an additional company to this contact. */
+  @Post(":id/companies")
+  linkCompany(
+    @CurrentTeam() team: TeamContext,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: LinkCompanyDto,
+  ) {
+    return this.contacts.linkCompany(team.teamId, id, dto.companyId, dto.role, dto.makePrimary);
+  }
+
+  /** Unlink a company from this contact. */
+  @Delete(":id/companies/:companyId")
+  unlinkCompany(
+    @CurrentTeam() team: TeamContext,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("companyId", ParseUUIDPipe) companyId: string,
+  ) {
+    return this.contacts.unlinkCompany(team.teamId, id, companyId);
+  }
+
+  /** Change which linked company is the primary one. */
+  @Patch(":id/companies/primary")
+  setPrimaryCompany(
+    @CurrentTeam() team: TeamContext,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: SetPrimaryCompanyDto,
+  ) {
+    return this.contacts.setPrimaryCompany(team.teamId, id, dto.companyId);
   }
 }

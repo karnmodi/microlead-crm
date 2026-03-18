@@ -234,6 +234,11 @@ export class LeadsController {
     return this.leads.get(team.teamId, id);
   }
 
+  @Get(":id/emails")
+  listEmails(@CurrentTeam() team: TeamContext, @Param("id", ParseUUIDPipe) id: string) {
+    return this.leads.listEmails(team.teamId, id);
+  }
+
   @Post()
   create(
     @CurrentTeam() team: TeamContext,

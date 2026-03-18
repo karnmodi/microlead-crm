@@ -276,13 +276,22 @@ export class IntegrationsService {
       if (!firstName && !lastName) continue;
       if (existingNorms.has(norm)) continue;
 
+      const jobTitle = formatOfficerJobTitle(officer.role);
+
       await this.prisma.contact.create({
         data: {
           teamId,
           companyId,
           firstName: firstName || lastName,
           lastName: firstName ? lastName : "",
-          jobTitle: formatOfficerJobTitle(officer.role),
+          jobTitle,
+          companyLinks: {
+            create: {
+              companyId,
+              role: jobTitle,
+              isPrimary: true,
+            },
+          },
         },
       });
 
