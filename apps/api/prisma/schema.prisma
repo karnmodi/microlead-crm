@@ -158,9 +158,10 @@ model Company {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  contacts Contact[]
-  leads    Lead[]
+  team         Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  contacts     Contact[]
+  contactLinks ContactCompanyLink[]
+  leads        Lead[]
 
   @@index([teamId, updatedAt(sort: Desc)])
   @@map("companies")
@@ -177,16 +178,34 @@ model Contact {
   jobTitle    String?   @map("job_title")
   linkedinUrl String?   @map("linkedin_url")
   deletedAt   DateTime? @map("deleted_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  leads   Lead[]
-  emails  LeadEmail[]
+  team         Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  company      Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyLinks ContactCompanyLink[]
+  leads        Lead[]
+  emails       LeadEmail[]
 
   @@index([teamId, updatedAt(sort: Desc)])
   @@map("contacts")
+}
+
+model ContactCompanyLink {
+  id        String   @id @default(uuid())
+  contactId String   @map("contact_id")
+  companyId String   @map("company_id")
+  role      String?
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, companyId])
+  @@index([contactId])
+  @@index([companyId])
+  @@map("contact_company_links")
 }
 
 model PipelineStage {
