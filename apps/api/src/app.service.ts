@@ -175,7 +175,7 @@ export class AppService {
     };
   }
 
-  /** Cached 24h AI briefing for the dashboard. Pass force=true to regenerate. */
+  /** Cached 24h AI signal cards for the dashboard. Pass force=true to regenerate. */
   async getDashboardBriefing(teamId: string, force = false) {
     const now = new Date();
 
@@ -184,14 +184,21 @@ export class AppService {
         where: { teamId },
       });
       if (cached && now.getTime() - cached.generatedAt.getTime() < BRIEFING_CACHE_TTL_MS) {
-        return { content: cached.content, generatedAt: cached.generatedAt.toISOString(), fresh: false };
+        // Try parsing as structured signals (new format)
+        try {
+          const signals = JSON.parse(cached.content) as unknown;
+          if (Array.isArray(signals)) {
+            return { signals, generatedAt: cached.generatedAt.toISOString(), fresh: false };
+          }
+        } catch {
+          // Fall through to regenerate if cache is old prose format
+        }
       }
     }
 
-    // Gather summary data for the prompt
     const summary = await this.dashboardSummary(teamId);
 
-    const content = await this.ai.generateDashboardBriefing({
+    const signals = await this.ai.generateDashboardSignals({
       totalLeads: summary.leads.total,
       openValue: summary.leads.openValue,
       currency: summary.topLeads[0]?.currency ?? "USD",
@@ -206,9 +213,12 @@ export class AppService {
       leadsByStage: summary.leadsByStage.map((s) => ({
         stageName: s.stageName,
         count: s.count,
+        totalValue: s.totalValue,
       })),
       recentActions: summary.recentActivity.map((a) => `${a.actorName} ${a.action} ${a.entityType}`),
     });
+
+    const content = JSON.stringify(signals);
 
     const cached = await this.prisma.dashboardBriefingCache.upsert({
       where: { teamId },
@@ -216,6 +226,6 @@ export class AppService {
       update: { content, generatedAt: now },
     });
 
-    return { content: cached.content, generatedAt: cached.generatedAt.toISOString(), fresh: true };
+    return { signals, generatedAt: cached.generatedAt.toISOString(), fresh: true };
   }
 }

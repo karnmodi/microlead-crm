@@ -14,11 +14,13 @@ import {
 import OpenAI, { APIError } from "openai";
 import { ParentEntityType, type Prisma } from "@prisma/client";
 import {
+  buildDashboardSignalsPrompt,
   buildLeadSummaryPrompt,
   buildNextActionsPrompt,
   buildOutreachDraftPrompt,
   buildWinProbabilityPrompt,
   type DocumentExtract,
+  type DashboardSignalsContext,
 } from "@microlead-crm/ai";
 import { ActivitiesService } from "../activities/activities.service";
 import { MailService } from "../mail/mail.service";
@@ -936,6 +938,51 @@ export class AiService implements OnModuleInit {
         negative: parsed?.signals?.negative ?? [],
       },
     };
+  }
+
+  /** Generate structured AI signal cards for the dashboard (replaces prose briefing). */
+  async generateDashboardSignals(ctx: DashboardSignalsContext): Promise<Array<{
+    type: "risk" | "opportunity" | "nudge" | "win";
+    title: string;
+    body: string;
+    href: string;
+  }>> {
+    const prompt = buildDashboardSignalsPrompt(ctx);
+    const raw = await this.complete(
+      "You are a CRM intelligence engine. Return only valid JSON as instructed.",
+      prompt,
+    );
+
+    let parsed: { signals?: unknown } | null = null;
+    try {
+      const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      parsed = JSON.parse(clean) as { signals?: unknown };
+    } catch {
+      this.logger.warn("generateDashboardSignals: failed to parse JSON response");
+    }
+
+    const VALID_TYPES = new Set(["risk", "opportunity", "nudge", "win"]);
+    const VALID_HREFS = new Set(["/app/leads", "/app/tasks", "/app/contacts", "/app/companies", "/app/leads/kanban"]);
+
+    const rawSignals = Array.isArray(parsed?.signals) ? parsed.signals : [];
+    return (rawSignals as Array<Record<string, unknown>>)
+      .filter(
+        (s) =>
+          s &&
+          typeof s.type === "string" &&
+          VALID_TYPES.has(s.type) &&
+          typeof s.title === "string" &&
+          s.title.trim() !== "" &&
+          typeof s.body === "string" &&
+          s.body.trim() !== "",
+      )
+      .map((s) => ({
+        type: s.type as "risk" | "opportunity" | "nudge" | "win",
+        title: String(s.title).trim(),
+        body: String(s.body).trim(),
+        href: typeof s.href === "string" && VALID_HREFS.has(s.href) ? s.href : "/app/leads",
+      }))
+      .slice(0, 4);
   }
 
   /** Generate a daily sales intelligence briefing for the dashboard. */

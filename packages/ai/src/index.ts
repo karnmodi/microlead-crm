@@ -175,6 +175,62 @@ export function buildWinProbabilityPrompt(ctx: WinProbabilityContext): string {
   return lines.join("\n");
 }
 
+export type DashboardSignalsContext = {
+  totalLeads: number;
+  openValue: number;
+  currency: string;
+  closingSoon: number;
+  overdueTasks: number;
+  dueTodayTasks: number;
+  topLeads: Array<{ title: string; value: string | null; stageName: string }>;
+  leadsByStage: Array<{ stageName: string; count: number; totalValue: number }>;
+  recentActions: string[];
+};
+
+export function buildDashboardSignalsPrompt(ctx: DashboardSignalsContext): string {
+  const lines = [
+    "You are a CRM intelligence engine. Analyse the sales pipeline data below and return exactly 3–4 actionable signals.",
+    "Each signal must be a terse, specific insight that tells the sales rep what to do — not a description.",
+    "",
+    `Total open leads: ${ctx.totalLeads}`,
+    `Total pipeline value: ${ctx.openValue} ${ctx.currency}`,
+    `Leads closing in 7 days: ${ctx.closingSoon}`,
+    `Overdue tasks: ${ctx.overdueTasks}`,
+    `Tasks due today: ${ctx.dueTodayTasks}`,
+  ];
+
+  if (ctx.topLeads.length) {
+    lines.push("Top leads by value:");
+    ctx.topLeads.slice(0, 5).forEach((l, i) => {
+      lines.push(`  ${i + 1}. "${l.title}" — ${l.stageName}${l.value ? ` — ${l.value} ${ctx.currency}` : ""}`);
+    });
+  }
+
+  if (ctx.leadsByStage.length) {
+    lines.push("Pipeline by stage:");
+    ctx.leadsByStage.forEach((s) => {
+      lines.push(`  ${s.stageName}: ${s.count} leads, ${s.totalValue} ${ctx.currency}`);
+    });
+  }
+
+  if (ctx.recentActions.length) {
+    lines.push("Recent activity (last 6):");
+    ctx.recentActions.slice(0, 6).forEach((a, i) => lines.push(`  ${i + 1}. ${a}`));
+  }
+
+  lines.push("");
+  lines.push("Return ONLY valid JSON. No markdown, no code fences, no commentary.");
+  lines.push('Shape: {"signals":[{"type":"...","title":"...","body":"...","href":"..."}]}');
+  lines.push('type must be one of: "risk", "opportunity", "nudge", "win"');
+  lines.push("title: ≤6 words — bold, specific, action-oriented");
+  lines.push("body: exactly 1 sentence, ≤12 words, concrete not generic");
+  lines.push('href: one of "/app/leads", "/app/tasks", "/app/contacts", "/app/companies", "/app/leads/kanban"');
+  lines.push("Produce exactly 3–4 signals. Prioritise urgency: risks and overdue items first.");
+  lines.push("Do NOT produce generic signals like 'review your pipeline'. Be specific to the numbers.");
+
+  return lines.join("\n");
+}
+
 export type OutreachContext = {
   channel: "email" | "linkedin";
   leadTitle: string;
