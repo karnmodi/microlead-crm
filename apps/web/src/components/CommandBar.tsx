@@ -56,7 +56,7 @@ export function CommandBar() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-20 md:pt-24"
+          className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/50 p-4 pt-20 md:pt-24"
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}

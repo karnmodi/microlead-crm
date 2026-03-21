@@ -20,11 +20,12 @@ function SettingsIcon() {
   );
 }
 
-function UserIcon() {
+function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M20 21a8 8 0 1 0-16 0" />
-      <circle cx="12" cy="7" r="4" />
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }
@@ -137,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
+      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <Link href="/app" className="text-lg font-semibold tracking-tight">
@@ -166,14 +167,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <CommandBar />
             <TeamSwitcher />
             <Link href="/app/workspace/members">
-              <Button variant="secondary" size="sm">
+              <Button variant="secondary" size="sm" className="px-2" title="Settings">
                 <SettingsIcon />
-                Settings
               </Button>
             </Link>
-            <Button variant="secondary" size="sm" onClick={logout}>
-              <UserIcon />
-              Log out
+            <Button variant="secondary" size="sm" className="px-2" title="Log out" onClick={logout}>
+              <LogoutIcon />
             </Button>
           </div>
         </div>

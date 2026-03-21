@@ -37,8 +37,15 @@ export type DashboardSummary = {
   recentActivity: RecentActivityItem[];
 };
 
+export type DashboardSignal = {
+  type: "risk" | "opportunity" | "nudge" | "win";
+  title: string;
+  body: string;
+  href: string;
+};
+
 export type DashboardBriefing = {
-  content: string;
+  signals: DashboardSignal[];
   generatedAt: string;
   fresh: boolean;
 };

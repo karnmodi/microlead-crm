@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import {
   dashboardStatsQuery,
   integrationsStatusQuery,
   type DashboardBriefing,
+  type DashboardSignal,
   type IntegrationStatus,
   type LeadByStage,
   type RecentActivityItem,
@@ -45,13 +47,20 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+function timeGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 const STAGE_COLOURS = [
-  "bg-violet-500",
-  "bg-blue-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-cyan-500",
+  { bar: "bg-violet-500", text: "text-violet-600 dark:text-violet-400" },
+  { bar: "bg-blue-500", text: "text-blue-600 dark:text-blue-400" },
+  { bar: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400" },
+  { bar: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
+  { bar: "bg-rose-500", text: "text-rose-600 dark:text-rose-400" },
+  { bar: "bg-cyan-500", text: "text-cyan-600 dark:text-cyan-400" },
 ];
 
 const ENTITY_ICONS: Record<string, React.ReactNode> = {
@@ -76,10 +85,11 @@ const ENTITY_ICONS: Record<string, React.ReactNode> = {
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
-function Skeleton({ className }: { className?: string }) {
+function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <span
       className={`inline-block animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-700 ${className ?? ""}`}
+      style={style}
       aria-hidden
     />
   );
@@ -93,12 +103,14 @@ function KpiCard({
   subtext,
   accent,
   loading,
+  icon,
 }: {
   label: string;
   value: string | number;
   subtext?: string;
   accent?: "red" | "amber" | "green" | "violet";
   loading?: boolean;
+  icon?: React.ReactNode;
 }) {
   const accentMap = {
     red: "text-red-600 dark:text-red-400",
@@ -108,9 +120,16 @@ function KpiCard({
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
-      <p className={`mt-2 text-3xl font-bold tabular-nums ${accent ? accentMap[accent] : "text-zinc-900 dark:text-zinc-50"}`}>
+    <div className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-start justify-between">
+        <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
+        {icon && (
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400 dark:bg-zinc-800">
+            {icon}
+          </span>
+        )}
+      </div>
+      <p className={`mt-3 text-3xl font-bold tabular-nums ${accent ? accentMap[accent] : "text-zinc-900 dark:text-zinc-50"}`}>
         {loading ? <Skeleton className="h-9 w-24" /> : value}
       </p>
       {subtext && (
@@ -122,13 +141,94 @@ function KpiCard({
   );
 }
 
-// ─── AI Briefing card ─────────────────────────────────────────────────────────
+// ─── Signal config ────────────────────────────────────────────────────────────
 
-function AiBriefingCard() {
+const SIGNAL_CONFIG = {
+  risk: {
+    border: "border-red-200 dark:border-red-900/40",
+    bg: "bg-red-50/60 dark:bg-red-950/20",
+    accent: "bg-red-500",
+    badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+    label: "Risk",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="rgb(239,68,68)" strokeWidth="1.3" />
+        <path d="M7 4.5v3M7 9.5v.5" stroke="rgb(239,68,68)" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  opportunity: {
+    border: "border-emerald-200 dark:border-emerald-900/40",
+    bg: "bg-emerald-50/60 dark:bg-emerald-950/20",
+    accent: "bg-emerald-500",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+    label: "Opportunity",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 1l1.5 4H13l-3.5 2.5 1 4L7 9l-3.5 2.5 1-4L1 5h4.5z" stroke="rgb(16,185,129)" strokeWidth="1.2" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  nudge: {
+    border: "border-amber-200 dark:border-amber-900/40",
+    bg: "bg-amber-50/60 dark:bg-amber-950/20",
+    accent: "bg-amber-500",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+    label: "Nudge",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="rgb(217,119,6)" strokeWidth="1.3" />
+        <path d="M7 3.5v3.5l2 2" stroke="rgb(217,119,6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  win: {
+    border: "border-violet-200 dark:border-violet-900/40",
+    bg: "bg-violet-50/60 dark:bg-violet-950/20",
+    accent: "bg-violet-500",
+    badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
+    label: "Win",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 4l2 6h6l2-6" stroke="rgb(139,92,246)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7 10v2M5 12h4" stroke="rgb(139,92,246)" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+};
+
+// ─── AI Signal Bar ────────────────────────────────────────────────────────────
+
+function SignalCard({ signal }: { signal: DashboardSignal }) {
+  const cfg = SIGNAL_CONFIG[signal.type];
+  return (
+    <Link
+      href={signal.href}
+      className={`group flex min-w-0 flex-1 flex-col gap-2 rounded-2xl border p-4 transition hover:shadow-sm ${cfg.border} ${cfg.bg}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="shrink-0">{cfg.icon}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cfg.badge}`}>
+          {cfg.label}
+        </span>
+      </div>
+      <p className="text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">{signal.title}</p>
+      <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{signal.body}</p>
+      <span className="mt-auto flex items-center gap-1 text-[11px] font-medium text-zinc-400 transition group-hover:text-zinc-600 dark:group-hover:text-zinc-300">
+        View
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 5h6M5.5 2.5L8 5l-2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    </Link>
+  );
+}
+
+function AISignalBar() {
   const qc = useQueryClient();
   const [briefing, setBriefing] = useState<DashboardBriefing | null>(null);
 
-  const fetchBriefing = useMutation({
+  const fetchSignals = useMutation({
     mutationFn: (force: boolean) =>
       api<DashboardBriefing>("/dashboard/ai-briefing", {
         method: "POST",
@@ -138,22 +238,31 @@ function AiBriefingCard() {
   });
 
   useEffect(() => {
-    fetchBriefing.mutate(false);
+    fetchSignals.mutate(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loading = fetchBriefing.isPending;
+  const loading = fetchSignals.isPending;
 
   return (
-    <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-6 dark:border-violet-800/40 dark:bg-violet-950/20">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1l1.5 4H13l-3.5 2.5 1 4L7 9l-3.5 2.5 1-4L1 5h4.5z" stroke="white" strokeWidth="1.2" strokeLinejoin="round" />
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 dark:bg-zinc-100">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path
+                d="M6.5 1.5C6.5 1.5 7.5 4 9.5 4.5C7.5 5 6.5 7.5 6.5 7.5C6.5 7.5 5.5 5 3.5 4.5C5.5 4 6.5 1.5 6.5 1.5Z"
+                fill="white"
+                className="dark:fill-zinc-900"
+              />
+              <path
+                d="M10.5 8C10.5 8 11 9.5 12.5 9.5C11 9.5 10.5 11 10.5 11C10.5 11 10 9.5 8.5 9.5C10 9.5 10.5 8 10.5 8Z"
+                fill="white"
+                className="dark:fill-zinc-900"
+              />
             </svg>
           </div>
-          <span className="ai-title-shimmer text-sm font-semibold">AI Sales Briefing</span>
+          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">AI Signals</span>
           {briefing && !loading && (
             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800">
               {relativeTime(briefing.generatedAt)}
@@ -161,14 +270,14 @@ function AiBriefingCard() {
           )}
         </div>
         <button
-          onClick={() => fetchBriefing.mutate(true)}
+          onClick={() => fetchSignals.mutate(true)}
           disabled={loading}
           className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
           {loading ? (
             <>
-              <span className="h-3 w-3 animate-spin rounded-full border border-violet-400 border-t-transparent" />
-              Generating…
+              <span className="h-3 w-3 animate-spin rounded-full border border-zinc-400 border-t-transparent" />
+              Thinking…
             </>
           ) : (
             <>
@@ -182,22 +291,29 @@ function AiBriefingCard() {
         </button>
       </div>
 
-      <div className="mt-4 border-l-2 border-violet-300 pl-4 dark:border-violet-700">
-        {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-4 w-4/5" />
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-        ) : fetchBriefing.isError ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            AI briefing unavailable — check that an AI provider is configured (OPENAI_API_KEY or Azure OpenAI).
-          </p>
-        ) : briefing ? (
-          <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{briefing.content}</p>
-        ) : null}
-      </div>
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="space-y-2.5">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : fetchSignals.isError ? (
+        <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-5 py-4 text-sm text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">
+          AI signals unavailable — check that an AI provider is configured.
+        </div>
+      ) : briefing?.signals?.length ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {briefing.signals.map((signal, i) => (
+            <SignalCard key={i} signal={signal} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -213,7 +329,7 @@ function TopLeadsWidget({ leads, loading }: { leads: TopLead[]; loading: boolean
           href="/app/leads/kanban"
           className="text-xs text-violet-600 hover:underline dark:text-violet-400"
         >
-          View pipeline →
+          View board →
         </Link>
       </div>
       <ul className="flex-1 divide-y divide-zinc-50 dark:divide-zinc-800/60">
@@ -233,7 +349,7 @@ function TopLeadsWidget({ leads, loading }: { leads: TopLead[]; loading: boolean
             )
           : leads.map((lead, i) => (
               <li key={lead.id} className="flex items-center gap-3 px-5 py-3.5">
-                <span className="text-xs font-bold text-zinc-300 dark:text-zinc-600 w-4">{i + 1}</span>
+                <span className="w-4 text-xs font-bold text-zinc-300 dark:text-zinc-600">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/app/leads/${lead.id}`}
@@ -334,7 +450,7 @@ function ActivityFeed({ items, loading }: { items: RecentActivityItem[]; loading
           ? Array.from({ length: 5 }).map((_, i) => (
               <li key={i} className="flex items-start gap-3 px-5 py-3">
                 <Skeleton className="mt-0.5 h-7 w-7 shrink-0 rounded-full" />
-                <div className="space-y-1.5 flex-1">
+                <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-3.5 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />
                 </div>
@@ -370,58 +486,113 @@ function ActivityFeed({ items, loading }: { items: RecentActivityItem[]; loading
   );
 }
 
-// ─── Pipeline by stage chart ──────────────────────────────────────────────────
+// ─── Revenue Waterfall ────────────────────────────────────────────────────────
 
-function PipelineChart({ stages, loading }: { stages: LeadByStage[]; loading: boolean }) {
+function RevenueWaterfall({ stages, loading }: { stages: LeadByStage[]; loading: boolean }) {
   const maxCount = Math.max(...stages.map((s) => s.count), 1);
+  const totalLeads = stages.reduce((sum, s) => sum + s.count, 0);
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mb-5 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pipeline by Stage</h3>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Revenue Waterfall</h3>
+          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+            Deal flow across your pipeline stages
+          </p>
+        </div>
         <Link
           href="/app/leads/kanban"
           className="text-xs text-violet-600 hover:underline dark:text-violet-400"
         >
-          Open kanban →
+          Open board →
         </Link>
       </div>
 
       {loading ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-1.5">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-5 w-full rounded-full" />
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-3 w-24 shrink-0" />
+              <Skeleton className={`h-8 rounded-lg`} style={{ width: `${80 - i * 15}%` }} />
+              <Skeleton className="h-3 w-16 shrink-0" />
             </div>
           ))}
         </div>
       ) : stages.length === 0 ? (
-        <p className="py-4 text-center text-sm text-zinc-400">No pipeline stages configured</p>
+        <p className="py-8 text-center text-sm text-zinc-400">No pipeline stages configured</p>
       ) : (
-        <div className="space-y-4">
-          {stages.map((stage, i) => (
-            <div key={stage.stageId}>
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{stage.stageName}</span>
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <span className="tabular-nums">{stage.count} lead{stage.count !== 1 ? "s" : ""}</span>
-                  {stage.totalValue > 0 && (
-                    <>
-                      <span>·</span>
-                      <span className="tabular-nums">{formatCurrency(stage.totalValue)}</span>
-                    </>
+        <div className="space-y-2.5">
+          {stages.map((stage, i) => {
+            const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
+            const dropPct =
+              i < stages.length - 1 && stages[i + 1]
+                ? Math.round(((stage.count - stages[i + 1].count) / Math.max(stage.count, 1)) * 100)
+                : null;
+            const colour = STAGE_COLOURS[i % STAGE_COLOURS.length];
+
+            return (
+              <div key={stage.stageId} className="group flex items-center gap-3">
+                {/* Stage label */}
+                <div className="w-28 shrink-0 text-right">
+                  <span className="truncate text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    {stage.stageName}
+                  </span>
+                </div>
+
+                {/* Funnel bar */}
+                <div className="relative flex-1">
+                  <div
+                    className={`h-8 rounded-lg transition-all duration-500 ${colour.bar} opacity-90`}
+                    style={{ width: `${Math.max(pct, stage.count > 0 ? 4 : 0)}%` }}
+                  />
+                  {/* Drop-off indicator between stages */}
+                  {dropPct !== null && dropPct > 0 && (
+                    <span className="absolute -bottom-3.5 left-1 text-[9px] text-zinc-400">
+                      ↓ {dropPct}% drop
+                    </span>
+                  )}
+                </div>
+
+                {/* Stats */}
+                <div className="w-36 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold tabular-nums ${colour.text}`}>
+                      {stage.count} lead{stage.count !== 1 ? "s" : ""}
+                    </span>
+                    {stage.totalValue > 0 && (
+                      <>
+                        <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                        <span className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {formatCurrency(stage.totalValue)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {totalLeads > 0 && (
+                    <div className="mt-0.5 text-[10px] text-zinc-400">
+                      {Math.round((stage.count / totalLeads) * 100)}% of pipeline
+                    </div>
                   )}
                 </div>
               </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${STAGE_COLOURS[i % STAGE_COLOURS.length]}`}
-                  style={{ width: `${Math.max((stage.count / maxCount) * 100, stage.count > 0 ? 4 : 0)}%` }}
-                />
-              </div>
+            );
+          })}
+
+          {/* Summary bar */}
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-800/50">
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total pipeline</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {totalLeads} leads
+              </span>
+              {stages.some((s) => s.totalValue > 0) && (
+                <span className="text-sm font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                  {formatCurrency(stages.reduce((sum, s) => sum + s.totalValue, 0))}
+                </span>
+              )}
             </div>
-          ))}
+          </div>
         </div>
       )}
     </div>
@@ -542,15 +713,23 @@ export default function DashboardPage() {
   const intBusy = !mounted || integrations.isPending;
 
   const data = stats.data;
+  const greeting = mounted ? timeGreeting() : "Welcome";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Dashboard</h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Your pipeline intelligence hub — refreshed on every load.
-        </p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {greeting}
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Here&rsquo;s what needs your attention today.
+          </p>
+        </div>
+        <span className="hidden text-xs text-zinc-400 sm:block dark:text-zinc-600">
+          {mounted ? new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : ""}
+        </span>
       </div>
 
       {/* KPI row */}
@@ -560,6 +739,11 @@ export default function DashboardPage() {
           value={data?.leads.total ?? "—"}
           subtext={data ? `${data.leads.closingSoon} closing in 7 days` : undefined}
           loading={busy}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path d="M1 12L4 9L6.5 11.5L13 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
         />
         <KpiCard
           label="Pipeline Value"
@@ -567,12 +751,23 @@ export default function DashboardPage() {
           subtext={data ? `Across ${data.leads.total} open deals` : undefined}
           accent="violet"
           loading={busy}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path d="M7.5 1.5v12M3.5 5.5c0-2.209 1.791-4 4-4s4 1.791 4 4M3.5 9.5c0 2.209 1.791 4 4 4s4-1.791 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          }
         />
         <KpiCard
           label="Contacts"
           value={data?.contacts.total ?? "—"}
           subtext={data ? `${data.companies.total} companies` : undefined}
           loading={busy}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <circle cx="7.5" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M1.5 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          }
         />
         <KpiCard
           label="Overdue Tasks"
@@ -580,11 +775,17 @@ export default function DashboardPage() {
           subtext={data ? `+${data.tasks.dueToday} due today` : undefined}
           accent={data && data.tasks.overdue > 0 ? "red" : undefined}
           loading={busy}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M7.5 4v4l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
         />
       </div>
 
-      {/* AI Briefing */}
-      <AiBriefingCard />
+      {/* AI Signal Bar */}
+      <AISignalBar />
 
       {/* 3-column content row */}
       <div className="grid gap-5 lg:grid-cols-3">
@@ -597,8 +798,8 @@ export default function DashboardPage() {
         <ActivityFeed items={data?.recentActivity ?? []} loading={busy} />
       </div>
 
-      {/* Pipeline chart */}
-      <PipelineChart stages={data?.leadsByStage ?? []} loading={busy} />
+      {/* Revenue Waterfall */}
+      <RevenueWaterfall stages={data?.leadsByStage ?? []} loading={busy} />
 
       {/* Integration strip */}
       <IntegrationStrip integrations={integrations.data ?? []} loading={intBusy} />
