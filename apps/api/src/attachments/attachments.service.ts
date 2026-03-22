@@ -1,22 +1,53 @@
-import { Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ParentEntityType } from "@prisma/client";
-import { createReadStream } from "fs";
-import { mkdir } from "fs/promises";
-import { join, posix } from "path";
+import { posix } from "path";
 import { randomUUID } from "crypto";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { ActivitiesService } from "../activities/activities.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { DocumentExtractorService } from "./document-extractor.service";
 
+const BUCKET = "Microlead";
+
 @Injectable()
-export class AttachmentsService implements OnModuleInit {
-  private root!: string;
+export class AttachmentsService {
+  private readonly log = new Logger(AttachmentsService.name);
+  private supabase!: SupabaseClient;
 
   constructor(
+    private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly activities: ActivitiesService,
     private readonly extractor: DocumentExtractorService,
-  ) {}
+  ) {
+    const url = this.config.get<string>("SUPABASE_URL")?.trim();
+    const key = this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+    if (!url || !key) {
+      this.log.warn(
+        "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set — file uploads will fail",
+      );
+    } else {
+      this.supabase = createClient(url, key, {
+        auth: { persistSession: false },
+      });
+      this.log.log(`Supabase Storage configured → bucket: ${BUCKET}`);
+    }
+  }
+
+  private get storage() {
+    if (!this.supabase) {
+      throw new InternalServerErrorException(
+        "Storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing)",
+      );
+    }
+    return this.supabase.storage.from(BUCKET);
+  }
 
   private async bumpLeadSummaryVersionForParent(
     teamId: string,
@@ -28,15 +59,6 @@ export class AttachmentsService implements OnModuleInit {
       where: { id: parentId, teamId, deletedAt: null },
       data: { aiSummaryVersion: { increment: 1 } },
     });
-  }
-
-  async onModuleInit() {
-    this.root = process.env.STORAGE_PATH ?? join(process.cwd(), "storage", "uploads");
-    await mkdir(this.root, { recursive: true });
-  }
-
-  diskPath(storageKey: string) {
-    return join(this.root, storageKey);
   }
 
   private async assertParent(teamId: string, type: ParentEntityType, id: string) {
@@ -60,13 +82,20 @@ export class AttachmentsService implements OnModuleInit {
     file: Express.Multer.File,
   ) {
     await this.assertParent(teamId, parentType, parentId);
-    const safe = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
+
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileName = `${randomUUID()}-${safe}`;
-    const storageKey = posix.join(teamId, fileName);
-    const fs = await import("fs/promises");
-    const dir = join(this.root, teamId);
-    await mkdir(dir, { recursive: true });
-    await fs.writeFile(join(this.root, teamId, fileName), file.buffer);
+    const storageKey = posix.join(teamId, parentType.toLowerCase(), parentId, fileName);
+
+    const { error } = await this.storage.upload(storageKey, file.buffer, {
+      contentType: file.mimetype || "application/octet-stream",
+      upsert: false,
+    });
+
+    if (error) {
+      this.log.error(`Supabase upload failed: ${error.message}`);
+      throw new InternalServerErrorException(`Upload failed: ${error.message}`);
+    }
 
     const row = await this.prisma.attachment.create({
       data: {
@@ -79,12 +108,13 @@ export class AttachmentsService implements OnModuleInit {
         filename: file.originalname,
       },
     });
+
     await this.activities.append(teamId, userId, parentType, parentId, "attachment.created", {
       attachmentId: row.id,
     });
     await this.bumpLeadSummaryVersionForParent(teamId, parentType, parentId);
 
-    // Fire-and-forget document extraction — does not block the upload response
+    // Fire-and-forget document extraction
     void this.extractor.extract(row.id, file.buffer, file.mimetype || "application/octet-stream");
 
     return row;
@@ -106,35 +136,43 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   async get(teamId: string, id: string) {
-    const row = await this.prisma.attachment.findFirst({
-      where: { id, teamId },
-    });
+    const row = await this.prisma.attachment.findFirst({ where: { id, teamId } });
     if (!row) throw new NotFoundException();
     return row;
   }
 
   async streamFile(teamId: string, id: string) {
     const row = await this.get(teamId, id);
-    const path = this.diskPath(row.storageKey);
-    return { stream: createReadStream(path), mimeType: row.mimeType, filename: row.filename };
+
+    const { data, error } = await this.storage.download(row.storageKey);
+    if (error || !data) {
+      this.log.error(`Supabase download failed for ${row.storageKey}: ${error?.message}`);
+      throw new InternalServerErrorException("Could not retrieve file from storage");
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    return { buffer, mimeType: row.mimeType, filename: row.filename };
   }
 
   async reExtract(teamId: string, id: string) {
     const row = await this.get(teamId, id);
-    const fs = await import("fs/promises");
-    const buffer = await fs.readFile(this.diskPath(row.storageKey));
+    const { data, error } = await this.storage.download(row.storageKey);
+    if (error || !data) {
+      throw new InternalServerErrorException("Could not retrieve file from storage");
+    }
+    const buffer = Buffer.from(await data.arrayBuffer());
     void this.extractor.extract(row.id, buffer, row.mimeType);
     return { ok: true, status: "pending" };
   }
 
   async remove(teamId: string, userId: string, id: string) {
     const row = await this.get(teamId, id);
-    const fs = await import("fs/promises");
-    try {
-      await fs.unlink(this.diskPath(row.storageKey));
-    } catch {
-      /* ignore missing file */
+
+    const { error } = await this.storage.remove([row.storageKey]);
+    if (error) {
+      this.log.warn(`Supabase delete failed for ${row.storageKey}: ${error.message}`);
     }
+
     await this.prisma.attachment.delete({ where: { id } });
     await this.activities.append(teamId, userId, row.parentType, row.parentId, "attachment.deleted", {
       attachmentId: id,

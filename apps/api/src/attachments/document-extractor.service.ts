@@ -120,7 +120,10 @@ export class DocumentExtractorService {
 
   private async extractPdf(buffer: Buffer): Promise<string> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
+    const mod = require("pdf-parse");
+    const pdfParse = (typeof mod === "function" ? mod : mod.default) as (
+      buf: Buffer,
+    ) => Promise<{ text: string }>;
     const result = await pdfParse(buffer);
     return result.text.trim();
   }
