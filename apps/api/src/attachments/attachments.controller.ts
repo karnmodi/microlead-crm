@@ -9,11 +9,12 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
-  StreamableFile,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { IsEnum, IsUUID } from "class-validator";
 import { memoryStorage } from "multer";
@@ -77,12 +78,18 @@ export class AttachmentsController {
   async download(
     @CurrentTeam() team: TeamContext,
     @Param("id", ParseUUIDPipe) id: string,
+    @Res() res: Response,
   ) {
-    const { stream, mimeType, filename } = await this.attachments.streamFile(team.teamId, id);
-    return new StreamableFile(stream, {
-      type: mimeType,
-      disposition: filename ? `attachment; filename="${filename.replace(/"/g, "")}"` : undefined,
-    });
+    const { buffer, mimeType, filename } = await this.attachments.streamFile(team.teamId, id);
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Length", buffer.length);
+    if (filename) {
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename.replace(/"/g, "")}"`,
+      );
+    }
+    res.end(buffer);
   }
 
   @Delete(":id")
