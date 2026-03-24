@@ -5,6 +5,7 @@ import {
   type CompaniesHouseBusinessProfile,
   type CompaniesHouseOfficer,
 } from "./companies-house-business-profile";
+import type { FetchHttpResponse } from "../fetch-http-response";
 
 const DEFAULT_COMPANIES_HOUSE_BASE_URL = "https://api.company-information.service.gov.uk";
 
@@ -36,9 +37,9 @@ export class CompaniesHouseService {
     const credentials = Buffer.from(`${apiKey}:`).toString("base64");
 
     try {
-      const res = await fetch(url, {
+      const res = (await fetch(url, {
         headers: { Authorization: `Basic ${credentials}` },
-      });
+      })) as FetchHttpResponse;
 
       if (res.status === 404) return [];
       if (!res.ok) {
@@ -68,9 +69,9 @@ export class CompaniesHouseService {
     const apiRetrievedAt = new Date().toISOString();
 
     try {
-      const res = await fetch(url, {
+      const res = (await fetch(url, {
         headers: { Authorization: `Basic ${credentials}` },
-      });
+      })) as FetchHttpResponse;
 
       if (res.status === 404) return null;
       if (!res.ok) {

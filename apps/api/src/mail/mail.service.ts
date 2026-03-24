@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { FetchHttpResponse } from "../fetch-http-response";
 
 @Injectable()
 export class MailService {
@@ -23,7 +24,7 @@ export class MailService {
       return { sent: false };
     }
 
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = (await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -37,7 +38,7 @@ export class MailService {
 <p><a href="${escapeHtml(params.acceptUrl)}">Accept invitation</a></p>
 <p>If you did not expect this, you can ignore this email.</p>`,
       }),
-    });
+    })) as FetchHttpResponse;
 
     if (!res.ok) {
       const text = await res.text();
@@ -60,7 +61,7 @@ export class MailService {
       return { sent: false };
     }
 
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = (await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -75,7 +76,7 @@ export class MailService {
           params.html ??
           `<p>${escapeHtml(params.text).replace(/\n/g, "<br/>")}</p>`,
       }),
-    });
+    })) as FetchHttpResponse;
 
     if (!res.ok) {
       const text = await res.text();

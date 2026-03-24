@@ -26,6 +26,7 @@ import { ActivitiesService } from "../activities/activities.service";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { TasksService } from "../tasks/tasks.service";
+import type { FetchHttpResponse } from "../fetch-http-response";
 
 function tagsFromJson(tags: Prisma.JsonValue | null | undefined): string[] | undefined {
   if (tags === null || tags === undefined) return undefined;
@@ -46,13 +47,6 @@ type TeamAiSettingsShape = {
   actionHorizonDays: number;
 };
 type AiTaskCandidate = { title: string; dueAt: string | null };
-/** Fetch API response shape (explicit to avoid Express `Response` colliding in some TS setups). */
-type FetchHttpResponse = {
-  json(): Promise<unknown>;
-  ok: boolean;
-  statusText: string;
-  status: number;
-};
 const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function toDateYmd(d: Date): string {

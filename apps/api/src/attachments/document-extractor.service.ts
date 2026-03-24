@@ -3,6 +3,7 @@ import * as path from "path";
 import { Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
 import { PrismaService } from "../prisma/prisma.service";
+import type { FetchHttpResponse } from "../fetch-http-response";
 
 const MAX_STORED_CHARS = 12_000;
 const VISION_MIME_TYPES = new Set([
@@ -192,11 +193,11 @@ export class DocumentExtractorService {
       ],
       max_tokens: 1500,
     };
-    const res = await fetch(url, {
+    const res = (await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "api-key": cfg.key },
       body: JSON.stringify(body),
-    });
+    })) as FetchHttpResponse;
     if (!res.ok) {
       const txt = await res.text().catch(() => res.statusText);
       throw new Error(`Azure vision error ${res.status}: ${txt}`);
