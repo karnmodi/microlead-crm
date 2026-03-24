@@ -46,6 +46,13 @@ type TeamAiSettingsShape = {
   actionHorizonDays: number;
 };
 type AiTaskCandidate = { title: string; dueAt: string | null };
+/** Fetch API response shape (explicit to avoid Express `Response` colliding in some TS setups). */
+type FetchHttpResponse = {
+  json(): Promise<unknown>;
+  ok: boolean;
+  statusText: string;
+  status: number;
+};
 const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function toDateYmd(d: Date): string {
@@ -136,7 +143,7 @@ export class AiService implements OnModuleInit {
 
     if (cfg) {
       const url = `${cfg.endpoint}/openai/responses?api-version=${cfg.apiVersion}`;
-      const res = await fetch(url, {
+      const res = (await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -147,7 +154,7 @@ export class AiService implements OnModuleInit {
           instructions: system,
           input: user,
         }),
-      });
+      })) as FetchHttpResponse;
 
       type AzureResponsesOutput = {
         output_text?: string;
