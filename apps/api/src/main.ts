@@ -1,5 +1,6 @@
 import { ValidationPipe, RequestMethod } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { Request, Response, NextFunction } from "express";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -10,6 +11,31 @@ async function bootstrap() {
   ]
     .filter(Boolean)
     .flatMap((o) => o!.split(",").map((s) => s.trim()));
+
+  // Explicit middleware so OPTIONS preflights are handled before NestJS routing
+  // (required for Vercel serverless where enableCors alone can miss preflights)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin ?? "";
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+      );
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, Accept",
+      );
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
