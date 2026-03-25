@@ -47,16 +47,16 @@ export default function WorkspaceMembersPage() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [formErr, setFormErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
-  const [businessFocus, setBusinessFocus] = useState(AI_SETTINGS_DEFAULTS.businessFocus);
-  const [crmPurpose, setCrmPurpose] = useState(AI_SETTINGS_DEFAULTS.crmPurpose);
-  const [targetAudience, setTargetAudience] = useState(AI_SETTINGS_DEFAULTS.targetAudience);
-  const [toneGuidelines, setToneGuidelines] = useState(AI_SETTINGS_DEFAULTS.toneGuidelines);
-  const [emailSignature, setEmailSignature] = useState(AI_SETTINGS_DEFAULTS.emailSignature);
-  const [defaultClosing, setDefaultClosing] = useState(AI_SETTINGS_DEFAULTS.defaultClosing);
-  const [languageStyle, setLanguageStyle] = useState(AI_SETTINGS_DEFAULTS.languageStyle);
-  const [responseVerbosity, setResponseVerbosity] = useState(AI_SETTINGS_DEFAULTS.responseVerbosity);
-  const [reasoningDepth, setReasoningDepth] = useState(AI_SETTINGS_DEFAULTS.reasoningDepth);
-  const [actionHorizonDays, setActionHorizonDays] = useState(AI_SETTINGS_DEFAULTS.actionHorizonDays);
+  const [businessFocus, setBusinessFocus] = useState<string>(AI_SETTINGS_DEFAULTS.businessFocus);
+  const [crmPurpose, setCrmPurpose] = useState<string>(AI_SETTINGS_DEFAULTS.crmPurpose);
+  const [targetAudience, setTargetAudience] = useState<string>(AI_SETTINGS_DEFAULTS.targetAudience);
+  const [toneGuidelines, setToneGuidelines] = useState<string>(AI_SETTINGS_DEFAULTS.toneGuidelines);
+  const [emailSignature, setEmailSignature] = useState<string>(AI_SETTINGS_DEFAULTS.emailSignature);
+  const [defaultClosing, setDefaultClosing] = useState<string>(AI_SETTINGS_DEFAULTS.defaultClosing);
+  const [languageStyle, setLanguageStyle] = useState<string>(AI_SETTINGS_DEFAULTS.languageStyle);
+  const [responseVerbosity, setResponseVerbosity] = useState<number>(AI_SETTINGS_DEFAULTS.responseVerbosity);
+  const [reasoningDepth, setReasoningDepth] = useState<number>(AI_SETTINGS_DEFAULTS.reasoningDepth);
+  const [actionHorizonDays, setActionHorizonDays] = useState<number>(AI_SETTINGS_DEFAULTS.actionHorizonDays);
 
   useEffect(() => {
     setTeamId(getStoredTeamId());

@@ -225,7 +225,6 @@ function SignalCard({ signal }: { signal: DashboardSignal }) {
 }
 
 function AISignalBar() {
-  const qc = useQueryClient();
   const [briefing, setBriefing] = useState<DashboardBriefing | null>(null);
 
   const fetchSignals = useMutation({

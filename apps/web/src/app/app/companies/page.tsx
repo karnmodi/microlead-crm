@@ -59,7 +59,7 @@ export default function CompaniesPage() {
 
   const [search, setSearch] = useState("");
 
-  const companies = data?.data ?? [];
+  const companies = useMemo(() => data?.data ?? [], [data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();

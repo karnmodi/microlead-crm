@@ -59,7 +59,7 @@ export default function ContactsPage() {
 
   const [search, setSearch] = useState("");
 
-  const contacts = data?.data ?? [];
+  const contacts = useMemo(() => data?.data ?? [], [data]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
