@@ -26,7 +26,7 @@ async function bootstrap() {
       );
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, Accept",
+        "Content-Type, Authorization, Accept, x-team-id",
       );
       res.setHeader("Vary", "Origin");
     }
@@ -40,6 +40,7 @@ async function bootstrap() {
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "Accept", "x-team-id"],
   });
   app.useGlobalPipes(
     new ValidationPipe({
