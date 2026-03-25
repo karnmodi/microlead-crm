@@ -32,3 +32,4 @@ pnpm-debug.log*
 # Test / coverage
 coverage/
 apps/web/tsconfig.tsbuildinfo
+apps/api/prisma/seed-hoze.ts
