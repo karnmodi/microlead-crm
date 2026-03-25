@@ -8,6 +8,7 @@ async function bootstrap() {
   const allowedOrigins = [
     process.env.WEB_ORIGIN ?? "http://localhost:3000",
     process.env.WEB_ORIGIN_2,
+    "https://microlead.aviusolutions.com",
   ]
     .filter(Boolean)
     .flatMap((o) => o!.split(",").map((s) => s.trim()));
