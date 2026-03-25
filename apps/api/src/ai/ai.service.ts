@@ -74,13 +74,28 @@ function parseEnvFile(filePath: string): Record<string, string> {
   }
 }
 
-/** Read Azure config directly from .env files — ignores process.env overrides. */
-function loadAzureConfigFromFile(): {
+/** Resolve Azure config from process.env first, then fallback to .env files. */
+function loadAzureConfig(): {
   key: string;
   endpoint: string;
   deployment: string;
   apiVersion: string;
+  source: "process.env" | ".env file";
 } | null {
+  const envKey = process.env.AZURE_OPENAI_API_KEY?.trim();
+  const envEndpoint = process.env.AZURE_OPENAI_ENDPOINT?.trim()?.replace(/\/$/, "");
+  const envDeployment = process.env.AZURE_OPENAI_DEPLOYMENT?.trim();
+  const envApiVersion = process.env.AZURE_OPENAI_API_VERSION?.trim() ?? "2024-08-01-preview";
+  if (envKey && envEndpoint && envDeployment) {
+    return {
+      key: envKey,
+      endpoint: envEndpoint,
+      deployment: envDeployment,
+      apiVersion: envApiVersion,
+      source: "process.env",
+    };
+  }
+
   const candidates = [
     path.join(process.cwd(), ".env"),
     path.join(process.cwd(), "..", "..", ".env"),
@@ -99,14 +114,16 @@ function loadAzureConfigFromFile(): {
   const deployment = merged["AZURE_OPENAI_DEPLOYMENT"]?.trim();
   const apiVersion = merged["AZURE_OPENAI_API_VERSION"]?.trim() ?? "2024-08-01-preview";
 
-  if (key && endpoint && deployment) return { key, endpoint, deployment, apiVersion };
+  if (key && endpoint && deployment) {
+    return { key, endpoint, deployment, apiVersion, source: ".env file" };
+  }
   return null;
 }
 
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
-  private azureCfg: ReturnType<typeof loadAzureConfigFromFile> = null;
+  private azureCfg: ReturnType<typeof loadAzureConfig> = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -116,11 +133,11 @@ export class AiService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.azureCfg = loadAzureConfigFromFile();
+    this.azureCfg = loadAzureConfig();
     const cfg = this.azureCfg;
 
     if (cfg) {
-      this.logger.log(`AI provider : Azure OpenAI (credentials read from .env file)`);
+      this.logger.log(`AI provider : Azure OpenAI (credentials from ${cfg.source})`);
       this.logger.log(`  Endpoint  : ${cfg.endpoint}`);
       this.logger.log(`  Deployment: ${cfg.deployment}`);
       this.logger.log(`  API ver   : ${cfg.apiVersion}`);
@@ -128,7 +145,9 @@ export class AiService implements OnModuleInit {
     } else if (process.env.OPENAI_API_KEY?.trim()) {
       this.logger.log(`AI provider : OpenAI (OPENAI_API_KEY from process.env)`);
     } else {
-      this.logger.warn(`AI provider : NOT CONFIGURED — add AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT to .env`);
+      this.logger.warn(
+        `AI provider : NOT CONFIGURED — set AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT (process.env or .env)`,
+      );
     }
   }
 
