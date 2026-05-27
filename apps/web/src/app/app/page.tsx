@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -62,6 +63,7 @@ const STAGE_COLOURS = [
   { bar: "bg-rose-500", text: "text-rose-600 dark:text-rose-400" },
   { bar: "bg-cyan-500", text: "text-cyan-600 dark:text-cyan-400" },
 ];
+
 
 const ENTITY_ICONS: Record<string, React.ReactNode> = {
   LEAD: (
@@ -485,109 +487,244 @@ function ActivityFeed({ items, loading }: { items: RecentActivityItem[]; loading
   );
 }
 
-// ─── Revenue Waterfall ────────────────────────────────────────────────────────
+// ─── Pipeline Funnel (Sankey) ─────────────────────────────────────────────────
 
-function RevenueWaterfall({ stages, loading }: { stages: LeadByStage[]; loading: boolean }) {
-  const maxCount = Math.max(...stages.map((s) => s.count), 1);
-  const totalLeads = stages.reduce((sum, s) => sum + s.count, 0);
+const FUNNEL_COLORS = [
+  { ribbon: "text-violet-400", bar: "fill-violet-500" },
+  { ribbon: "text-blue-400",   bar: "fill-blue-500"   },
+  { ribbon: "text-emerald-400",bar: "fill-emerald-500" },
+  { ribbon: "text-amber-400",  bar: "fill-amber-500"  },
+  { ribbon: "text-rose-400",   bar: "fill-rose-500"   },
+  { ribbon: "text-cyan-400",   bar: "fill-cyan-500"   },
+];
+
+function PipelineFunnel({ stages, loading }: { stages: LeadByStage[]; loading: boolean }) {
+  const router = useRouter();
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    x: number;
+    y: number;
+    stage: LeadByStage;
+  } | null>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
+
+  const sorted = [...stages].sort((a, b) => a.sortOrder - b.sortOrder);
+  const n = sorted.length;
+  const totalLeads = sorted.reduce((s, x) => s + x.count, 0);
+  const totalValue = sorted.reduce((s, x) => s + x.totalValue, 0);
+
+  // ── Layout ────────────────────────────────────────────────────────────────
+  const MT = 32, MB = 48, ROW_H = 64, SVG_W = 680;
+  const SVG_H = n > 0 ? MT + n * ROW_H + MB : 200;
+  const SRC_CX = 78, SRC_R = 36;
+  const BAR_X = 370, MAX_BAR_W = 140, BAR_H = 32;
+  const MAX_STROKE = 30, MIN_STROKE = 4;
+
+  const srcCY = SVG_H / 2;
+  const stageCY = sorted.map((_, i) => MT + i * ROW_H + ROW_H / 2);
+
+  const ribbonStroke = (count: number) =>
+    totalLeads > 0 ? Math.max(MIN_STROKE, (count / totalLeads) * MAX_STROKE) : MIN_STROKE;
+
+  const barW = (count: number) =>
+    totalLeads > 0 ? Math.max(20, (count / totalLeads) * MAX_BAR_W) : 20;
+
+  const pct = (count: number) =>
+    totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0;
+
+  const emptyState = n === 0 || totalLeads === 0;
+
+  const clearHover = () => { setHoveredIdx(null); setTooltip(null); };
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Revenue Waterfall</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pipeline Funnel</h3>
           <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-            Deal flow across your pipeline stages
+            How open leads are distributed across your pipeline
           </p>
         </div>
-        <Link
-          href="/app/leads/kanban"
-          className="text-xs text-violet-600 hover:underline dark:text-violet-400"
-        >
+        <Link href="/app/leads/kanban" className="text-xs text-violet-600 hover:underline dark:text-violet-400">
           Open board →
         </Link>
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4 py-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4">
-              <Skeleton className="h-3 w-24 shrink-0" />
-              <Skeleton className={`h-8 rounded-lg`} style={{ width: `${80 - i * 15}%` }} />
-              <Skeleton className="h-3 w-16 shrink-0" />
+            <div key={i} className="flex items-center gap-6">
+              <Skeleton className="h-3 w-20 shrink-0" />
+              <Skeleton className="h-8 rounded-lg" style={{ width: `${72 - i * 14}%` }} />
             </div>
           ))}
         </div>
-      ) : stages.length === 0 ? (
+      ) : emptyState ? (
         <p className="py-8 text-center text-sm text-zinc-400">No pipeline stages configured</p>
       ) : (
-        <div className="space-y-2.5">
-          {stages.map((stage, i) => {
-            const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
-            const dropPct =
-              i < stages.length - 1 && stages[i + 1]
-                ? Math.round(((stage.count - stages[i + 1].count) / Math.max(stage.count, 1)) * 100)
-                : null;
-            const colour = STAGE_COLOURS[i % STAGE_COLOURS.length];
+        <div className="space-y-4">
+          {/* Floating tooltip rendered outside SVG for clean styling */}
+          {tooltip && (
+            <div
+              style={{ position: "fixed", left: tooltip.x + 14, top: tooltip.y - 64, zIndex: 50, pointerEvents: "none" }}
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{tooltip.stage.stageName}</p>
+              <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                {tooltip.stage.count.toLocaleString()} {tooltip.stage.count === 1 ? "lead" : "leads"}
+                {" · "}
+                {pct(tooltip.stage.count)}% of total
+              </p>
+              {tooltip.stage.totalValue > 0 && (
+                <p className="mt-0.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400">
+                  {formatCurrency(tooltip.stage.totalValue)}
+                </p>
+              )}
+            </div>
+          )}
 
-            return (
-              <div key={stage.stageId} className="group flex items-center gap-3">
-                {/* Stage label */}
-                <div className="w-28 shrink-0 text-right">
-                  <span className="truncate text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                    {stage.stageName}
-                  </span>
-                </div>
+          <div className="-mx-2 overflow-x-auto px-2 pb-1">
+            <svg
+              viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+              width={SVG_W}
+              height={SVG_H}
+              style={{ minWidth: SVG_W, display: "block", opacity: ready ? 1 : 0, transition: "opacity 0.45s ease" }}
+              aria-label="Pipeline funnel diagram"
+              role="img"
+            >
+              {/* ── Source node ─────────────────────────────────────────────── */}
+              <circle
+                cx={SRC_CX}
+                cy={srcCY}
+                r={SRC_R}
+                className="fill-zinc-100 dark:fill-zinc-800"
+                style={{ opacity: hoveredIdx !== null ? 0.5 : 1, transition: "opacity 0.2s" }}
+              />
+              <circle
+                cx={SRC_CX}
+                cy={srcCY}
+                r={SRC_R}
+                fill="none"
+                className="stroke-zinc-300 dark:stroke-zinc-600"
+                strokeWidth={1.5}
+                style={{ opacity: hoveredIdx !== null ? 0.5 : 1, transition: "opacity 0.2s" }}
+              />
+              <text
+                x={SRC_CX}
+                y={srcCY - 7}
+                textAnchor="middle"
+                fontSize={16}
+                fontWeight={800}
+                className="fill-zinc-900 dark:fill-zinc-50"
+                style={{ opacity: hoveredIdx !== null ? 0.5 : 1, transition: "opacity 0.2s" }}
+              >
+                {totalLeads}
+              </text>
+              <text
+                x={SRC_CX}
+                y={srcCY + 9}
+                textAnchor="middle"
+                fontSize={9}
+                className="fill-zinc-500 dark:fill-zinc-400"
+                style={{ opacity: hoveredIdx !== null ? 0.5 : 1, transition: "opacity 0.2s" }}
+              >
+                All Leads
+              </text>
 
-                {/* Funnel bar */}
-                <div className="relative flex-1">
-                  <div
-                    className={`h-8 rounded-lg transition-all duration-500 ${colour.bar} opacity-90`}
-                    style={{ width: `${Math.max(pct, stage.count > 0 ? 4 : 0)}%` }}
+              {/* ── Ribbons ─────────────────────────────────────────────────── */}
+              {sorted.map((stage, i) => {
+                const cy = stageCY[i];
+                const x1 = SRC_CX + SRC_R;
+                const x2 = BAR_X;
+                const cpx = x1 + (x2 - x1) * 0.58;
+                const d = `M ${x1} ${srcCY} C ${cpx} ${srcCY}, ${cpx} ${cy}, ${x2} ${cy}`;
+                const col = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+                const dimmed = hoveredIdx !== null && hoveredIdx !== i;
+
+                return (
+                  <path
+                    key={`ribbon-${stage.stageId}`}
+                    d={d}
+                    fill="none"
+                    className={col.ribbon}
+                    stroke="currentColor"
+                    strokeWidth={ribbonStroke(stage.count)}
+                    strokeLinecap="round"
+                    style={{
+                      opacity: dimmed ? 0.1 : 0.45,
+                      transition: "opacity 0.2s",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => { setHoveredIdx(i); setTooltip({ x: e.clientX, y: e.clientY, stage }); }}
+                    onMouseMove={(e) => { if (hoveredIdx === i) setTooltip({ x: e.clientX, y: e.clientY, stage }); }}
+                    onMouseLeave={clearHover}
+                    onClick={() => router.push("/app/leads/kanban")}
                   />
-                  {/* Drop-off indicator between stages */}
-                  {dropPct !== null && dropPct > 0 && (
-                    <span className="absolute -bottom-3.5 left-1 text-[9px] text-zinc-400">
-                      ↓ {dropPct}% drop
-                    </span>
-                  )}
-                </div>
+                );
+              })}
 
-                {/* Stats */}
-                <div className="w-36 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold tabular-nums ${colour.text}`}>
-                      {stage.count} lead{stage.count !== 1 ? "s" : ""}
-                    </span>
-                    {stage.totalValue > 0 && (
-                      <>
-                        <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                        <span className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-                          {formatCurrency(stage.totalValue)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {totalLeads > 0 && (
-                    <div className="mt-0.5 text-[10px] text-zinc-400">
-                      {Math.round((stage.count / totalLeads) * 100)}% of pipeline
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              {/* ── Stage bars + labels ──────────────────────────────────────── */}
+              {sorted.map((stage, i) => {
+                const cy = stageCY[i];
+                const col = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+                const dimmed = hoveredIdx !== null && hoveredIdx !== i;
+                const bw = barW(stage.count);
 
-          {/* Summary bar */}
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-800/50">
+                return (
+                  <g
+                    key={`stage-${stage.stageId}`}
+                    style={{ opacity: dimmed ? 0.15 : 1, transition: "opacity 0.2s", cursor: "pointer" }}
+                    onMouseEnter={(e) => { setHoveredIdx(i); setTooltip({ x: e.clientX, y: e.clientY, stage }); }}
+                    onMouseMove={(e) => setTooltip({ x: e.clientX, y: e.clientY, stage })}
+                    onMouseLeave={clearHover}
+                    onClick={() => router.push("/app/leads/kanban")}
+                  >
+                    {/* Colour bar */}
+                    <rect
+                      x={BAR_X}
+                      y={cy - BAR_H / 2}
+                      width={bw}
+                      height={BAR_H}
+                      rx={6}
+                      className={col.bar}
+                    />
+                    {/* Stage name */}
+                    <text
+                      x={BAR_X + bw + 10}
+                      y={cy - 4}
+                      fontSize={11.5}
+                      fontWeight={600}
+                      className="fill-zinc-800 dark:fill-zinc-100"
+                    >
+                      {stage.stageName}
+                    </text>
+                    {/* Count + % */}
+                    <text
+                      x={BAR_X + bw + 10}
+                      y={cy + 10}
+                      fontSize={10.5}
+                      className="fill-zinc-500 dark:fill-zinc-400"
+                    >
+                      {stage.count.toLocaleString()} {stage.count === 1 ? "lead" : "leads"} · {pct(stage.count)}%
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Summary footer */}
+          <div className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-800/50">
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total pipeline</span>
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
-                {totalLeads} leads
+                {totalLeads.toLocaleString()} leads
               </span>
-              {stages.some((s) => s.totalValue > 0) && (
+              {totalValue > 0 && (
                 <span className="text-sm font-bold tabular-nums text-violet-600 dark:text-violet-400">
-                  {formatCurrency(stages.reduce((sum, s) => sum + s.totalValue, 0))}
+                  {formatCurrency(totalValue)}
                 </span>
               )}
             </div>
@@ -797,8 +934,8 @@ export default function DashboardPage() {
         <ActivityFeed items={data?.recentActivity ?? []} loading={busy} />
       </div>
 
-      {/* Revenue Waterfall */}
-      <RevenueWaterfall stages={data?.leadsByStage ?? []} loading={busy} />
+      {/* Pipeline Funnel */}
+      <PipelineFunnel stages={data?.leadsByStage ?? []} loading={busy} />
 
       {/* Integration strip */}
       <IntegrationStrip integrations={integrations.data ?? []} loading={intBusy} />

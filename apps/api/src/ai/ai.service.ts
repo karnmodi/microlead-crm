@@ -57,6 +57,27 @@ function isYmd(value: string | null | undefined): value is string {
   return !!value && YMD_REGEX.test(value);
 }
 
+/**
+ * Accept either a bare Azure resource endpoint or a full responses URL
+ * and normalize it back to the Azure resource origin.
+ */
+function normalizeAzureEndpoint(endpoint: string | undefined): string | undefined {
+  const raw = endpoint?.trim();
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    parsed.search = "";
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+    if (parsed.pathname.endsWith("/openai/responses")) {
+      parsed.pathname = parsed.pathname.slice(0, -"/openai/responses".length);
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return raw.replace(/\/$/, "").replace(/\/openai\/responses$/, "");
+  }
+}
+
 /** Parse a .env file into a key→value map without touching process.env. */
 function parseEnvFile(filePath: string): Record<string, string> {
   try {
@@ -83,7 +104,7 @@ function loadAzureConfig(): {
   source: "process.env" | ".env file";
 } | null {
   const envKey = process.env.AZURE_OPENAI_API_KEY?.trim();
-  const envEndpoint = process.env.AZURE_OPENAI_ENDPOINT?.trim()?.replace(/\/$/, "");
+  const envEndpoint = normalizeAzureEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
   const envDeployment = process.env.AZURE_OPENAI_DEPLOYMENT?.trim();
   const envApiVersion = process.env.AZURE_OPENAI_API_VERSION?.trim() ?? "2024-08-01-preview";
   if (envKey && envEndpoint && envDeployment) {
@@ -110,7 +131,7 @@ function loadAzureConfig(): {
   }
 
   const key = merged["AZURE_OPENAI_API_KEY"]?.trim();
-  const endpoint = merged["AZURE_OPENAI_ENDPOINT"]?.trim()?.replace(/\/$/, "");
+  const endpoint = normalizeAzureEndpoint(merged["AZURE_OPENAI_ENDPOINT"]);
   const deployment = merged["AZURE_OPENAI_DEPLOYMENT"]?.trim();
   const apiVersion = merged["AZURE_OPENAI_API_VERSION"]?.trim() ?? "2024-08-01-preview";
 
